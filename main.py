@@ -46,6 +46,11 @@ def main():
         print(f"  -> {name}: {len(df)} 行")
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    csv_path = output_path.with_suffix(".csv")
+    consolidated.to_csv(csv_path, index=False, encoding="utf-8-sig")
+    print(f"[输出] 写入 CSV (中间数据): {csv_path}")
+
     print(f"[输出] 写入 Excel: {output_path}")
     write_excel(reports, output_path)
     print("[完成]")
