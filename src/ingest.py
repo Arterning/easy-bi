@@ -11,8 +11,17 @@ def load_config(config_path="config/schemas.yaml"):
         return yaml.safe_load(f)
 
 
-def _safe_float(v):
+def _is_empty(v):
     if v is None:
+        return True
+    try:
+        return pd.isna(v)
+    except (TypeError, ValueError):
+        return False
+
+
+def _safe_float(v):
+    if _is_empty(v):
         return 0.0
     try:
         return float(v)
@@ -38,15 +47,21 @@ def _extract_month(dt_val):
     return None
 
 
-def _match_by_contains(source_val, mapping_df, source_col, mapping_col, result_cols):
-    """模糊匹配：source_val 包含 mapping_col 的值"""
+def _match_by(source_val, mapping_df, mapping_col, result_cols, how="contains"):
+    """匹配：how=contains(包含) / exact(精确)"""
     if not source_val:
         return None
     sv = str(source_val).lower()
     for _, row in mapping_df.iterrows():
         mv = str(row.get(mapping_col, "")).lower()
-        if mv and mv in sv:
-            return {k: row.get(k) for k in result_cols}
+        if not mv:
+            continue
+        if how == "exact":
+            if sv == mv:
+                return {k: row.get(k) for k in result_cols}
+        elif how == "contains":
+            if mv in sv:
+                return {k: row.get(k) for k in result_cols}
     return None
 
 
@@ -90,42 +105,56 @@ def parse_platform(file_path, platform_name, plat_conf, all_mappings):
             if ufield in ("销售数量", "销售额", "成本单价", "成本总额", "利润", "退款金额", "退货成本", "推广费"):
                 out[ufield] = _safe_float(raw)
             else:
-                out[ufield] = str(raw).strip() if raw is not None else None
+                out[ufield] = str(raw).strip() if not _is_empty(raw) else None
 
-        out["销售时间"] = str(row.get(fields.get("销售时间", ""))) if fields.get("销售时间") else None
-
-        if out["销售时间"] and out["销售时间"] != "None":
-            out["所属月份"] = _extract_month(out["销售时间"])
+        time_field = fields.get("销售时间")
+        if time_field:
+            raw_time = row.get(time_field)
+            out["销售时间"] = str(raw_time).strip() if not _is_empty(raw_time) else None
         else:
-            out["所属月份"] = None
+            out["销售时间"] = None
+
+        if out["销售时间"]:
+            out["所属月份"] = _extract_month(out["销售时间"])
+
+        # 经手人 empty 时置 None
+        if out.get("经手人") in ("", "nan", "None"):
+            out["经手人"] = None
 
         qty = out["销售数量"]
         if qty < 0:
             out["退款金额"] = abs(out["销售额"])
             out["退货成本"] = abs(qty * out["成本单价"]) if out["成本单价"] else 0.0
 
-        # 如果没有自带品牌/业务员，尝试从映射表匹配
-        if (not plat_conf.get("has_brand") or not plat_conf.get("has_salesperson")) and all_mappings is not None:
+        # 映射表补齐品牌/业务员
+        if (not plat_conf.get("has_brand") or not plat_conf.get("has_salesperson")) and all_mappings:
             mapping_conf = plat_conf.get("mapping_table")
-            if mapping_conf and mapping_conf in all_mappings:
-                mdf = all_mappings[mapping_conf]
-                mjoin = plat_conf.get("mapping_join", {})
-                source_field_local = mjoin.get("source_field")
-                if source_field_local and source_field_local in row:
-                    source_val = str(row[source_field_local]) if row[source_field_local] else None
-                    if source_val:
-                        result = _match_by_contains(
+            mapping_tables_to_try = [mapping_conf] if mapping_conf else list(all_mappings.keys())
+            mjoin = plat_conf.get("mapping_join", {})
+            how = mjoin.get("how", "contains")
+            source_field_local = mjoin.get("source_field")
+
+            if source_field_local and source_field_local in row:
+                raw_sv = row[source_field_local]
+                source_val = str(raw_sv).strip() if not _is_empty(raw_sv) else None
+                if source_val:
+                    for mt_name in mapping_tables_to_try:
+                        if mt_name not in all_mappings:
+                            continue
+                        mdf = all_mappings[mt_name]
+                        result = _match_by(
                             source_val,
                             mdf,
                             mjoin.get("mapping_field"),
-                            mjoin.get("mapping_field"),
                             [mjoin.get("brand_field"), mjoin.get("salesperson_field")],
+                            how,
                         )
                         if result:
                             if not plat_conf.get("has_brand") and not out["品牌"]:
                                 out["品牌"] = result.get(mjoin.get("brand_field"))
                             if not plat_conf.get("has_salesperson") and not out["业务员"]:
                                 out["业务员"] = result.get(mjoin.get("salesperson_field"))
+                            break
 
         if out["产品名称"] is None or out["产品名称"] in ("", "None"):
             continue

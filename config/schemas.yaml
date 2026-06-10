@@ -2,6 +2,34 @@
 # 当平台导出格式变化时，只需修改此文件
 
 platforms:
+  原表:
+    sheet: 原表
+    platform_name: 管家婆
+    has_brand: true
+    has_salesperson: false
+    has_cost: true
+    is_promotion: false
+    mapping_table: 微信基础数据
+    mapping_join:
+      how: exact
+      source_field: 单位名称
+      mapping_field: 单位名称
+      brand_field: 品牌
+      salesperson_field: 业务员
+    fields:
+      销售时间: 录单日期
+      产品名称: 商品名称
+      品牌: 品牌
+      销售数量: 单据明细数量
+      销售额: 折后金额
+      成本单价: 成本单价
+      成本总额: 销售成本
+      利润: 销售毛利
+      店铺名: 单位名称
+      经手人: 经手人
+      单位: 单位
+      单据类型: 单据类型
+
   帮帮管家婆:
     sheet: 帮帮管家婆
     platform_name: 帮帮
