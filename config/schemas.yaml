@@ -1,0 +1,114 @@
+# 各平台字段映射配置
+# 当平台导出格式变化时，只需修改此文件
+
+platforms:
+  帮帮管家婆:
+    sheet: 帮帮管家婆
+    platform_name: 帮帮
+    has_brand: true
+    has_salesperson: true
+    has_cost: true
+    is_promotion: false
+    fields:
+      销售时间: 录单日期
+      产品名称: 商品名称
+      品牌: 品牌
+      业务员: 业务员
+      销售数量: 单据明细数量
+      销售额: 折后金额
+      成本单价: 成本单价
+      成本总额: 销售成本
+      利润: 销售毛利
+      店铺名: 单位名称
+      经手人: 经手人
+      单位: 单位
+
+  帮帮旺店通:
+    sheet: 帮帮旺店通
+    platform_name: 帮帮
+    has_brand: true
+    has_salesperson: true
+    has_cost: false
+    is_promotion: false
+    fields:
+      销售时间: 交易时间
+      产品名称: 产品名称(匹配过来）
+      品牌: 品牌(匹配过来）
+      业务员: 业务员(匹配过来）
+      销售数量: 下单数量
+      销售额: 分摊后总价
+      店铺名: 店铺
+
+  品牌通平台导出数据:
+    sheet: 品牌通平台导出数据
+    platform_name: 品牌通
+    has_brand: true
+    has_salesperson: true
+    has_cost: false
+    is_promotion: true
+    fields:
+      销售时间: 结算时间
+      产品名称: 品名（匹配过来）
+      品牌: 品牌（匹配过来）
+      业务员: 业务员（匹配过来）
+      销售数量: 商品订单销量
+      销售额: 商品原价
+      推广费: 品牌补贴金额(未税)
+      店铺名: 门店名称
+
+  1688平台导出数据:
+    sheet: 1688平台导出数据
+    platform_name: 1688
+    has_brand: false
+    has_salesperson: false
+    has_cost: false
+    is_promotion: false
+    mapping_table: 1688基础数据
+    mapping_join:
+      how: contains
+      source_field: 货品标题
+      mapping_field: 1688标题
+      brand_field: 自命名品牌
+      salesperson_field: 业务员
+    fields:
+      销售时间: 订单创建时间
+      产品名称: 货品标题
+      销售数量: 数量
+      销售额: 实付款（元）
+      店铺名: 卖家公司名称
+      经手人: 卖家会员名
+
+  帮帮平台导出数据:
+    sheet: 帮帮平台导出数据
+    platform_name: 帮帮
+    has_brand: true
+    has_salesperson: false
+    has_cost: false
+    is_promotion: false
+    fields:
+      销售时间: 付款时间
+      产品名称: 闪购品牌
+      品牌: 品牌
+      业务员: null
+      销售数量: 1
+      销售额: 订单实付总额
+      店铺名: 闪购门店
+
+# 映射表配置（补齐品牌和业务员）
+mappings:
+  微信基础数据:
+    source_field: 单位名称
+    brand_field: 品牌
+    salesperson_field: 业务员
+  1688基础数据:
+    source_field: 1688标题
+    brand_field: 自命名品牌
+    salesperson_field: 业务员
+  帮帮基础数据:
+    source_field: 已绑定门店
+    brand_field: 品牌
+    salesperson_field: 业务员
+  品牌通基础数据:
+    source_field: 品牌通渠道
+    brand_field: 现品牌
+    salesperson_field: 业务员
