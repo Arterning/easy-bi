@@ -93,10 +93,14 @@ data-arrange/
 
 映射表放在 `config/schemas.yaml` 的 `mappings` 节，客户可以直接在 Excel 里编辑。
 
-### 运行命令
+### 运行方式
 
 ```bash
-# 单文件模式（一个Excel含多个平台Sheet）
+# GUI 模式（推荐）
+uv run python main.py
+
+# CLI 模式
+uv run python main.py <输入Excel路径> [输出Excel路径]
 uv run python main.py "数据整理（龙）(1).xlsx" "data/output/报表输出.xlsx"
 ```
 
@@ -112,27 +116,12 @@ uv run python main.py "数据整理（龙）(1).xlsx" "data/output/报表输出.
 
 ## 下一步计划
 
-### 第二阶段：Streamlit 界面
+### 改善与打包
 
-```
-左侧边栏:
-  ├── 📁 上传各平台文件（文件上传组件）
-  ├── ⚙️ 参数设置（月份范围、返点比例）
-  └── 🚀 [生成报表] 按钮
-
-右侧主区域:
-  ├── 📊 数据预览
-  ├── 📈 关键指标卡片
-  └── ⬇️ [下载 Excel] 按钮
-```
-
-### 第三阶段：改善与打包
-
-- 多文件上传支持（每个平台一个文件）
-- 映射表在线编辑（Streamlit 内直接管理）
-- `pyinstaller --onefile` 打包 exe
+- 多文件上传支持（每个平台一个文件，而非一个Excel多个sheet）
+- 映射表在线编辑（在 GUI 内直接管理品牌→业务员对应关系）
+- `pyinstaller --onefile` 打包为单文件 exe
 - 配置持久化
-- 错误提示和日志
 - 业务员周报补充：目标达成率、仓店数、投券覆盖率（需客户提供更多数据）
 
 ## 关键设计原则
