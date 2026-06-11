@@ -68,7 +68,7 @@ class App(ctk.CTk):
         ctk.CTkButton(row1, text="浏览", width=80, command=self._browse_input).pack(side="right", padx=(10, 0))
 
         # ---------- 输出文件 ----------
-        self.output_var = ctk.StringVar(value="data/output/报表输出.xlsx")
+        self.output_var = ctk.StringVar()
         ctk.CTkLabel(self, text="输出文件", anchor="w").pack(fill="x", padx=20, pady=(15, 0))
         row2 = ctk.CTkFrame(self, fg_color="transparent")
         row2.pack(fill="x", padx=20, pady=(5, 0))
@@ -87,6 +87,9 @@ class App(ctk.CTk):
         p = filedialog.askopenfilename(filetypes=[("Excel files", "*.xlsx *.xls")])
         if p:
             self.input_var.set(p)
+            if not self.output_var.get().strip():
+                in_path = Path(p)
+                self.output_var.set(str(in_path.parent / "报表输出.xlsx"))
 
     def _browse_output(self):
         p = filedialog.asksaveasfilename(
