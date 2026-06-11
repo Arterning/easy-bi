@@ -4,6 +4,7 @@ GUI: uv run python main.py
 CLI: uv run python main.py <输入Excel路径> [输出Excel路径]
 """
 
+import os
 import sys
 import threading
 import traceback
@@ -58,6 +59,7 @@ class App(ctk.CTk):
         super().__init__()
         self.title("多平台电商数据聚合报表工具")
         self.geometry("640x480")
+        self._set_icon()
 
         # ---------- 输入文件 ----------
         self.input_var = ctk.StringVar()
@@ -82,6 +84,17 @@ class App(ctk.CTk):
         # ---------- 日志区 ----------
         self.log_box = ctk.CTkTextbox(self, state="disabled")
         self.log_box.pack(fill="both", expand=True, padx=20, pady=(15, 20))
+
+    def _set_icon(self):
+        try:
+            if hasattr(sys, "_MEIPASS"):
+                p = Path(sys._MEIPASS) / "app.ico"
+            else:
+                p = Path("app.ico")
+            if p.exists():
+                self.iconbitmap(str(p))
+        except Exception:
+            pass
 
     def _browse_input(self):
         p = filedialog.askopenfilename(filetypes=[("Excel files", "*.xlsx *.xls")])
@@ -129,7 +142,8 @@ class App(ctk.CTk):
                 if ok:
                     self._log("")
                     self._log(f"输出目录: {Path(out_path).resolve().parent}")
-                    messagebox.showinfo("完成", "报表生成完成！")
+                    if messagebox.askyesno("完成", "报表生成完成！\n是否打开输出文件？"):
+                        os.startfile(str(Path(out_path).resolve()))
             except Exception:
                 self._log(traceback.format_exc())
                 messagebox.showerror("错误", "处理出错，详见日志")

@@ -1,4 +1,5 @@
 import re
+import sys
 from pathlib import Path
 from datetime import datetime
 
@@ -6,8 +7,16 @@ import pandas as pd
 import yaml
 
 
+def _resource_path(relative: str) -> Path:
+    """pyinstaller 打包后也能找到资源文件"""
+    if hasattr(sys, "_MEIPASS"):
+        return Path(sys._MEIPASS) / relative
+    return Path(relative)
+
+
 def load_config(config_path="config/schemas.yaml"):
-    with open(config_path, encoding="utf-8") as f:
+    p = _resource_path(config_path)
+    with open(p, encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 

@@ -13,13 +13,16 @@ ENTRY = "main.py"
 
 
 def main():
+    icon = "app.ico"
     cmd = [
         sys.executable, "-m", "PyInstaller",
         "--onefile",
         "--windowed",
         "--name", APP_NAME,
+        f"--icon={icon}",
         "--add-data", f"config/schemas.yaml{os.pathsep}config",
         "--add-data", f"src{os.pathsep}src",
+        "--add-data", f"app.ico{os.pathsep}.",
         "--clean",
         "--noconfirm",
         ENTRY,
