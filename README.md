@@ -104,6 +104,13 @@ uv run python main.py <输入Excel路径> [输出Excel路径]
 uv run python main.py "数据整理（龙）(1).xlsx" "data/output/报表输出.xlsx"
 ```
 
+## 打包为 exe
+
+```bash
+uv run python build.py
+# 输出: dist/数据整理工具.exe (约 45MB，无需 Python 环境可运行)
+```
+
 ### 当前已处理的细节
 
 - ✅ 日期格式兼容：`2026-05-14` / `20260514` / `2026年05月`
