@@ -44,7 +44,7 @@ def process(input_path: Path, output_path: Path, log_func):
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    csv_path = output_path.with_suffix(".csv")
+    csv_path = output_path.parent / "汇总表.csv"
     consolidated.to_csv(csv_path, index=False, encoding="utf-8-sig")
     log_func(f"[输出] CSV: {csv_path.name}")
 
