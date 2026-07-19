@@ -195,6 +195,9 @@ public class FileImportService {
     // --------------- Excel Parsing ---------------
 
     private List<SheetData> parseExcel(MultipartFile file) {
+        // Allow larger byte arrays for big Excel files
+        org.apache.poi.util.IOUtils.setByteArrayMaxOverride(500_000_000);
+
         List<SheetData> sheets = new ArrayList<>();
 
         try (InputStream is = file.getInputStream();
