@@ -1,0 +1,1 @@
+{"name":"员工销售与薪资汇总","sql":"SELECT s.姓名, s.部门, s.销售额, s.日期, sa.基本工资 FROM BI_DATA.T_33 s JOIN BI_DATA.T_34 sa ON s.姓名 = sa.员工姓名 AND s.部门 = sa.部门","description":"关联销售表和薪资表"}
