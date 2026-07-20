@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -50,17 +51,28 @@ export function DataSourcesPage() {
   }, [load])
 
   const handleUpload = async (file: File) => {
-    await api.uploadFile(file)
-    setPage(0)
-    await load(0)
+    try {
+      await api.uploadFile(file)
+      toast.success("导入成功")
+      setPage(0)
+      await load(0)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "导入失败")
+      throw e
+    }
   }
 
   const handleDelete = async () => {
     if (deleteTarget == null) return
-    await api.deleteDataSource(deleteTarget)
-    setDeleteTarget(null)
-    setPage(0)
-    await load(0)
+    try {
+      await api.deleteDataSource(deleteTarget)
+      toast.success("删除成功")
+      setDeleteTarget(null)
+      setPage(0)
+      await load(0)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "删除失败")
+    }
   }
 
   return (
