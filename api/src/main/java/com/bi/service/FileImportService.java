@@ -136,7 +136,7 @@ public class FileImportService {
 
     private void importExcelSheet(String filePath, String sheetName, String tableName) {
         String sql = "CREATE TABLE main.\"" + tableName + "\" AS " +
-                     "SELECT * FROM st_read('" + filePath + "', layer='" + sheetName.replace("'", "''") + "')";
+                     "SELECT * FROM read_xlsx('" + filePath + "', sheet='" + sheetName.replace("'", "''") + "',ignore_errors=True)";
         log.info("Importing Excel sheet: {}[{}] → {}", filePath, sheetName, tableName);
         duckDb.execute(sql);
         log.info("Excel sheet imported: table={}", tableName);

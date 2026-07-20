@@ -35,9 +35,9 @@ public class DuckDbConfig {
             ds.initConnection();
             Connection conn = ds.getConnection();
             try (var stmt = conn.createStatement()) {
-                stmt.execute("INSTALL spatial");
-                stmt.execute("LOAD spatial");
-                log.info("DuckDB spatial extension loaded on shared connection");
+                stmt.execute("INSTALL excel");
+                stmt.execute("LOAD excel");
+                log.info("DuckDB excel extension loaded on shared connection");
             }
         } catch (Exception e) {
             log.error("Failed to init DuckDB connection: {}", e.getMessage());
