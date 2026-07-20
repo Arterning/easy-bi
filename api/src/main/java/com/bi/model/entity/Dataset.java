@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "datasets", schema = "BI_META")
+@Table(name = "datasets")
 public class Dataset {
 
     @Id

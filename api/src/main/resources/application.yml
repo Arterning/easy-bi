@@ -1,34 +1,29 @@
 server:
   port: 8080
 
+# ---- H2: JPA metadata (unchanged) ----
 spring:
   datasource:
-    url: jdbc:h2:file:./data/bi_data;MODE=MySQL;AUTO_SERVER=TRUE;INIT=CREATE SCHEMA IF NOT EXISTS BI_META\;CREATE SCHEMA IF NOT EXISTS BI_DATA
+    url: jdbc:h2:file:./data/bi_meta;AUTO_SERVER=TRUE
     driver-class-name: org.h2.Driver
     username: sa
     password:
-  h2:
-    console:
-      enabled: true
-      path: /h2-console
   jpa:
     database-platform: org.hibernate.dialect.H2Dialect
     hibernate:
       ddl-auto: update
     show-sql: false
-    properties:
-      hibernate:
-        default_schema: BI_META
   servlet:
     multipart:
-      max-file-size: 100MB
-      max-request-size: 100MB
+      max-file-size: 200MB
+      max-request-size: 200MB
+
+# ---- DuckDB: data tables (JdbcTemplate) ----
+duckdb:
+  url: jdbc:duckdb:./data/bi_data.duckdb
 
 bi:
   query:
-    timeout-seconds: 30
-    max-rows-per-query: 50000
-  import:
-    type-inference-sample-rows: 100
-    batch-size: 1000
+    timeout-seconds: 60
+    max-rows-per-query: 100000
   upload-dir: ./data/uploads

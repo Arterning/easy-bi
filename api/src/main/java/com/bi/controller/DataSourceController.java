@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.*;
+import com.bi.model.dto.UploadResult;
 
 @RestController
 @RequestMapping("/api/datasources")
@@ -90,9 +91,9 @@ public class DataSourceController {
                     .body(ApiResponse.error(400, "表不属于该数据源"));
         }
 
-        String sql = "SELECT * FROM BI_DATA.\"" + tableName.toUpperCase() + "\" LIMIT " + Math.min(rows, 200);
+        String sql = "SELECT * FROM bi_data.\"" + tableName + "\" LIMIT " + Math.min(rows, 200);
         List<List<Object>> rowsData = tableManagementService.query(sql);
-        List<Map<String, String>> columns = tableManagementService.getTableColumns(tableName);
+        List<UploadResult.ColumnInfo> columns = tableManagementService.getTableColumns(tableName);
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("columns", columns);

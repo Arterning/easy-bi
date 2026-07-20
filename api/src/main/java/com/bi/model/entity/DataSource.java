@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "datasources", schema = "BI_META")
+@Table(name = "datasources")
 public class DataSource {
 
     @Id
