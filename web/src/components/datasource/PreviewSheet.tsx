@@ -43,7 +43,7 @@ export function PreviewSheet({ open, onOpenChange, dataSourceId, tableName }: Pr
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-[700px] sm:max-w-[700px] overflow-auto">
+      <SheetContent side="right" className="w-[80vw] overflow-auto">
         <SheetHeader>
           <SheetTitle>数据预览</SheetTitle>
           <SheetDescription>
