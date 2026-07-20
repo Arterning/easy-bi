@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react"
+import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { CaretDown, Database } from "@phosphor-icons/react"
@@ -7,7 +8,21 @@ import { api, type TableInfo } from "@/lib/api"
 interface ContextMenu {
   x: number
   y: number
-  text: string
+  table: string
+  column?: string
+}
+
+async function copyToClipboard(text: string) {
+  try {
+    await navigator.clipboard.writeText(text)
+  } catch {
+    const textarea = document.createElement("textarea")
+    textarea.value = text
+    document.body.appendChild(textarea)
+    textarea.select()
+    document.execCommand("copy")
+    document.body.removeChild(textarea)
+  }
 }
 
 export function TableBrowser() {
@@ -50,23 +65,29 @@ export function TableBrowser() {
     })
   }
 
-  const handleContextMenu = useCallback((e: React.MouseEvent, text: string) => {
+  const handleTableContextMenu = useCallback((e: React.MouseEvent, table: string) => {
     e.preventDefault()
-    setContextMenu({ x: e.clientX, y: e.clientY, text })
+    setContextMenu({ x: e.clientX, y: e.clientY, table })
   }, [])
 
-  const handleCopy = useCallback(async () => {
+  const handleColumnContextMenu = useCallback((e: React.MouseEvent, table: string, column: string) => {
+    e.preventDefault()
+    setContextMenu({ x: e.clientX, y: e.clientY, table, column })
+  }, [])
+
+  const handleCopyName = useCallback(async () => {
     if (!contextMenu) return
-    try {
-      await navigator.clipboard.writeText(contextMenu.text)
-    } catch {
-      const textarea = document.createElement("textarea")
-      textarea.value = contextMenu.text
-      document.body.appendChild(textarea)
-      textarea.select()
-      document.execCommand("copy")
-      document.body.removeChild(textarea)
-    }
+    const text = contextMenu.column ?? contextMenu.table
+    await copyToClipboard(text)
+    toast.success("复制成功")
+    setContextMenu(null)
+  }, [contextMenu])
+
+  const handleSelectAll = useCallback(async () => {
+    if (!contextMenu) return
+    const text = `SELECT * FROM ${contextMenu.table}`
+    await copyToClipboard(text)
+    toast.success("复制成功")
     setContextMenu(null)
   }, [contextMenu])
 
@@ -92,7 +113,7 @@ export function TableBrowser() {
             <div
               className="flex cursor-pointer items-center gap-1 rounded-md px-2 py-1 hover:bg-accent text-sm"
               onClick={() => toggle(table.name)}
-              onContextMenu={(e) => handleContextMenu(e, table.name)}
+              onContextMenu={(e) => handleTableContextMenu(e, table.name)}
             >
               <CaretDown
                 className={`size-3 text-muted-foreground transition-transform ${expanded.has(table.name) ? "rotate-0" : "-rotate-90"}`}
@@ -109,7 +130,7 @@ export function TableBrowser() {
                   <div
                     key={col.name}
                     className="flex cursor-pointer items-center gap-1 rounded-md px-2 py-0.5 text-xs hover:bg-accent"
-                    onContextMenu={(e) => handleContextMenu(e, col.name)}
+                    onContextMenu={(e) => handleColumnContextMenu(e, table.name, col.name)}
                   >
                     <span className="font-mono text-blue-600 dark:text-blue-400">{col.name}</span>
                     <span className="ml-auto text-muted-foreground">{col.type}</span>
@@ -129,10 +150,18 @@ export function TableBrowser() {
         >
           <button
             className="flex w-full items-center rounded-sm px-2 py-1.5 text-sm text-popover-foreground hover:bg-accent"
-            onClick={handleCopy}
+            onClick={handleCopyName}
           >
-            复制
+            复制名称
           </button>
+          {!contextMenu.column && (
+            <button
+              className="flex w-full items-center rounded-sm px-2 py-1.5 text-sm text-popover-foreground hover:bg-accent"
+              onClick={handleSelectAll}
+            >
+              查询所有
+            </button>
+          )}
         </div>
       )}
     </div>
