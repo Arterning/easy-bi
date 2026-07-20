@@ -47,8 +47,8 @@ export function SqlEditor({ value, onChange, onExecute, readOnly = false }: SqlE
         }),
         EditorState.readOnly.of(readOnly),
         EditorView.theme({
-          "&": { fontSize: "14px" },
-          ".cm-scroller": { fontFamily: "'Jetbrains Mono Variable', monospace" },
+          "&": { fontSize: "14px", height: "100%" },
+          ".cm-scroller": { fontFamily: "'Jetbrains Mono Variable', monospace", overflow: "auto" },
           ".cm-gutters": { display: readOnly ? "none" : "" },
         }),
       ],
@@ -75,7 +75,7 @@ export function SqlEditor({ value, onChange, onExecute, readOnly = false }: SqlE
   return (
     <div
       ref={containerRef}
-      className="min-h-[600px] rounded-md border bg-background overflow-hidden"
+      className="h-[600px] rounded-md border bg-background overflow-hidden"
     />
   )
 }
