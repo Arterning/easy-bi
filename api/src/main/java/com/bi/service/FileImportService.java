@@ -267,10 +267,18 @@ public class FileImportService {
     // --------------- Import ---------------
 
     private void importSheet(String tableName, SheetData sheet) {
-        // Sanitize column names
+        // Sanitize and deduplicate column names
         List<String> colNames = new ArrayList<>();
         for (String raw : sheet.columnNames) {
-            colNames.add(TableManagementService.sanitizeColumnName(raw));
+            String name = TableManagementService.sanitizeColumnName(raw);
+            // Deduplicate: append _2, _3, ... for repeated names
+            int suffix = 1;
+            String candidate = name;
+            while (colNames.contains(candidate)) {
+                suffix++;
+                candidate = name + "_" + suffix;
+            }
+            colNames.add(candidate);
         }
 
         // Build typed row values
