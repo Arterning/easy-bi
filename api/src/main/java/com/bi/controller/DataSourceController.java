@@ -91,7 +91,7 @@ public class DataSourceController {
                     .body(ApiResponse.error(400, "表不属于该数据源"));
         }
 
-        String sql = "SELECT * FROM bi_data.\"" + tableName + "\" LIMIT " + Math.min(rows, 200);
+        String sql = "SELECT * FROM main.\"" + tableName + "\" LIMIT " + Math.min(rows, 200);
         List<List<Object>> rowsData = tableManagementService.query(sql);
         List<UploadResult.ColumnInfo> columns = tableManagementService.getTableColumns(tableName);
 

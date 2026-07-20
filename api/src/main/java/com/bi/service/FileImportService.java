@@ -17,6 +17,9 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.nio.file.*;
 import java.util.*;
+import java.util.zip.ZipFile;
+import javax.xml.parsers.DocumentBuilderFactory;
+import org.w3c.dom.*;
 
 @Service
 public class FileImportService {
@@ -124,7 +127,7 @@ public class FileImportService {
     // ==================== DuckDB native import ====================
 
     private void importCsv(String filePath, String tableName) {
-        String sql = "CREATE TABLE bi_data.\"" + tableName + "\" AS " +
+        String sql = "CREATE TABLE main.\"" + tableName + "\" AS " +
                      "SELECT * FROM read_csv('" + filePath + "', header=true, auto_detect=true)";
         log.info("Importing CSV: {} → {}", filePath, tableName);
         duckDb.execute(sql);
@@ -132,18 +135,48 @@ public class FileImportService {
     }
 
     private void importExcelSheet(String filePath, String sheetName, String tableName) {
-        String sql = "CREATE TABLE bi_data.\"" + tableName + "\" AS " +
+        String sql = "CREATE TABLE main.\"" + tableName + "\" AS " +
                      "SELECT * FROM st_read('" + filePath + "', layer='" + sheetName.replace("'", "''") + "')";
         log.info("Importing Excel sheet: {}[{}] → {}", filePath, sheetName, tableName);
         duckDb.execute(sql);
         log.info("Excel sheet imported: table={}", tableName);
     }
 
+    /**
+     * Extract sheet names from Excel files.
+     * .xlsx: parsed from ZIP/xl/workbook.xml (no extra deps needed)
+     * .xls:  falls back to single "Sheet1" (old binary format requires POI)
+     */
     private List<String> getSheetNames(String filePath) {
-        return duckDb.query(
-                "SELECT name FROM st_layers('" + filePath + "')",
-                (rs, rowNum) -> rs.getString("name")
-        );
+        if (filePath.toLowerCase().endsWith(".xlsx")) {
+            return getXlsxSheetNames(filePath);
+        }
+        // .xls — binary format, just try the first sheet
+        return List.of("Sheet1");
+    }
+
+    private List<String> getXlsxSheetNames(String filePath) {
+        List<String> names = new ArrayList<>();
+        try (ZipFile zip = new ZipFile(filePath)) {
+            var entry = zip.getEntry("xl/workbook.xml");
+            if (entry == null) return List.of("Sheet1");
+
+            var doc = DocumentBuilderFactory.newInstance()
+                    .newDocumentBuilder()
+                    .parse(zip.getInputStream(entry));
+            var sheets = doc.getElementsByTagName("sheet");
+            for (int i = 0; i < sheets.getLength(); i++) {
+                Element sheet = (Element) sheets.item(i);
+                String name = sheet.getAttribute("name");
+                if (name != null && !name.isEmpty()) {
+                    names.add(name);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Failed to parse sheet names from xlsx: {}", e.getMessage());
+            return List.of("Sheet1");
+        }
+        return names.isEmpty() ? List.of("Sheet1") : names;
     }
 
     // ==================== Helpers ====================

@@ -1,7 +1,6 @@
 package com.bi.service;
 
 import com.bi.exception.BusinessException;
-import com.bi.model.dto.UploadResult;
 import com.bi.model.entity.DataSource;
 import com.bi.repository.DataSourceRepository;
 import org.springframework.data.domain.Page;
