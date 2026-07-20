@@ -59,33 +59,41 @@ public class TableManagementService {
     public void batchInsert(String tableName, List<String> columnNames, List<List<Object>> rows) {
         if (rows.isEmpty()) return;
 
-        StringBuilder sql = new StringBuilder();
-        sql.append("INSERT INTO BI_DATA.").append(escapeName(tableName)).append(" (");
-
+        // Column names are already sanitized/deduplicated by the caller
         List<String> safeCols = new ArrayList<>();
         for (String col : columnNames) {
-            safeCols.add(escapeName(sanitizeColumnName(col)));
+            safeCols.add(escapeName(col));
         }
+
+        StringBuilder sql = new StringBuilder();
+        sql.append("INSERT INTO BI_DATA.").append(escapeName(tableName)).append(" (");
         sql.append(String.join(", ", safeCols));
         sql.append(") VALUES (");
+        sql.append(String.join(", ", Collections.nCopies(safeCols.size(), "?")));
+        sql.append(")");
 
-        String placeholders = String.join(", ", Collections.nCopies(safeCols.size(), "?"));
-        sql.append(placeholders).append(")");
+        try (Connection conn = dataSource.getConnection()) {
+            conn.setAutoCommit(false);
+            try (PreparedStatement ps = conn.prepareStatement(sql.toString())) {
 
-        try (Connection conn = dataSource.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql.toString())) {
-
-            for (List<Object> row : rows) {
-                int idx = 1;
-                for (Object val : row) {
-                    ps.setObject(idx++, val);
+                for (List<Object> row : rows) {
+                    int idx = 1;
+                    for (Object val : row) {
+                        ps.setObject(idx++, val);
+                    }
+                    ps.addBatch();
                 }
-                ps.addBatch();
-            }
-            ps.executeBatch();
+                ps.executeBatch();
+                conn.commit();
 
+            } catch (SQLException e) {
+                conn.rollback();
+                String detail = e.getCause() != null ? e.getCause().getMessage() : e.getMessage();
+                log.error("Batch insert failed: table={}, rows={}, error={}", tableName, rows.size(), detail);
+                throw new RuntimeException("批量插入失败 (表=" + tableName + ", 行数=" + rows.size() + "): " + detail, e);
+            }
         } catch (SQLException e) {
-            throw new RuntimeException("Batch insert failed for table " + tableName, e);
+            throw new RuntimeException("数据库连接失败: " + e.getMessage(), e);
         }
     }
 

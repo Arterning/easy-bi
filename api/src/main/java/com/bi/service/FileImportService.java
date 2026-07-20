@@ -56,22 +56,20 @@ public class FileImportService {
     private final TableManagementService tableManagementService;
     private final int sampleRows;
     private final int batchSize;
-    private final Path uploadDir;
 
     public FileImportService(DataSourceRepository dataSourceRepository,
                              TableManagementService tableManagementService,
                              @Value("${bi.import.type-inference-sample-rows:100}") int sampleRows,
-                             @Value("${bi.import.batch-size:1000}") int batchSize,
-                             @Value("${bi.upload-dir:./data/uploads}") String uploadDir) {
+                             @Value("${bi.import.batch-size:1000}") int batchSize) {
         this.dataSourceRepository = dataSourceRepository;
         this.tableManagementService = tableManagementService;
         this.sampleRows = sampleRows;
         this.batchSize = batchSize;
-        this.uploadDir = Paths.get(uploadDir).toAbsolutePath().normalize();
     }
 
     /**
      * Main entry point: import a CSV or Excel file, create tables, persist metadata.
+     * Uses streaming to avoid holding all rows in memory.
      */
     @Transactional
     public UploadResult importFile(MultipartFile file) {
@@ -82,20 +80,13 @@ public class FileImportService {
 
         String extension = getExtension(originalName).toLowerCase();
         String fileType;
-        List<SheetData> sheets;
 
         if (CSV_EXTENSIONS.contains(extension)) {
             fileType = "csv";
-            sheets = parseCsv(file);
         } else if (EXCEL_EXTENSIONS.contains(extension)) {
             fileType = "excel";
-            sheets = parseExcel(file);
         } else {
             throw new BusinessException("不支持的文件类型: ." + extension + " (仅支持 csv/xls/xlsx)");
-        }
-
-        if (sheets.isEmpty()) {
-            throw new BusinessException("文件中没有可导入的数据");
         }
 
         // Save DataSource metadata first (to get an ID for table naming)
@@ -103,7 +94,7 @@ public class FileImportService {
         ds.setFileName(originalName);
         ds.setFileType(fileType);
         ds.setFileSize(file.getSize());
-        ds.setTableNames(""); // placeholder
+        ds.setTableNames("");
         ds = dataSourceRepository.save(ds);
 
         Long dsId = ds.getId();
@@ -111,24 +102,16 @@ public class FileImportService {
         List<String> tableNameList = new ArrayList<>();
 
         try {
-            for (int i = 0; i < sheets.size(); i++) {
-                SheetData sheet = sheets.get(i);
-                String tableName = fileType.equals("csv")
-                        ? "T_" + dsId
-                        : "T_" + dsId + "_" + i;
-
-                importSheet(tableName, sheet);
-                int rowCount = tableManagementService.countRows(tableName);
-
-                List<ColumnInfo> columnInfos = new ArrayList<>();
-                for (int j = 0; j < sheet.columnNames.size(); j++) {
-                    columnInfos.add(new ColumnInfo(
-                            TableManagementService.sanitizeColumnName(sheet.columnNames.get(j)),
-                            sheet.columnTypes.get(j)));
+            if (fileType.equals("csv")) {
+                TableInfo info = importCsvStreaming(file, dsId);
+                tableInfos.add(info);
+                tableNameList.add(info.getName());
+            } else {
+                List<TableInfo> infos = importExcelStreaming(file, dsId);
+                tableInfos.addAll(infos);
+                for (TableInfo ti : infos) {
+                    tableNameList.add(ti.getName());
                 }
-
-                tableInfos.add(new TableInfo(tableName, rowCount, columnInfos));
-                tableNameList.add(tableName);
             }
         } catch (Exception e) {
             // Roll back: drop any tables we created
@@ -136,19 +119,26 @@ public class FileImportService {
                 try { tableManagementService.dropTable(t); } catch (Exception ignored) {}
             }
             dataSourceRepository.delete(ds);
+            if (e instanceof BusinessException) throw (BusinessException) e;
             throw new BusinessException("导入失败: " + e.getMessage());
         }
 
-        // Update table names
         ds.setTableNames(String.join(",", tableNameList));
         dataSourceRepository.save(ds);
 
         return new UploadResult(dsId, originalName, fileType, file.getSize(), tableInfos);
     }
 
-    // --------------- CSV Parsing ---------------
+    // ==================== CSV Streaming Import ====================
 
-    private List<SheetData> parseCsv(MultipartFile file) {
+    private TableInfo importCsvStreaming(MultipartFile file, Long dsId) {
+        String tableName = "T_" + dsId;
+
+        // Pass 1: read headers + sample rows to infer types
+        List<String> headers;
+        List<List<String>> sample = new ArrayList<>();
+        int totalRows;
+
         try (BufferedReader reader = new BufferedReader(
                 new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8))) {
 
@@ -158,47 +148,88 @@ public class FileImportService {
                     .withTrim()
                     .parse(reader);
 
-            List<String> headers = parser.getHeaderNames();
+            headers = new ArrayList<>(parser.getHeaderNames());
             if (headers.isEmpty()) {
                 throw new BusinessException("CSV 文件没有表头");
             }
 
-            List<List<String>> sample = new ArrayList<>();
-            List<List<String>> allRows = new ArrayList<>();
-            int count = 0;
-
+            totalRows = 0;
             for (CSVRecord record : parser) {
-                List<String> row = new ArrayList<>();
-                for (int i = 0; i < headers.size(); i++) {
-                    row.add(i < record.size() ? record.get(i) : null);
-                }
-                if (count < sampleRows) {
+                if (totalRows < sampleRows) {
+                    List<String> row = new ArrayList<>();
+                    for (int i = 0; i < headers.size(); i++) {
+                        row.add(i < record.size() ? record.get(i) : null);
+                    }
                     sample.add(row);
                 }
-                allRows.add(row);
-                count++;
+                totalRows++;
             }
-
-            // Infer types from sample
-            List<String> types = inferTypes(headers.size(), sample);
-            List<String> colNames = new ArrayList<>(headers);
-
-            List<SheetData> result = new ArrayList<>();
-            result.add(new SheetData("data", colNames, types, allRows));
-            return result;
 
         } catch (IOException e) {
             throw new BusinessException("CSV 解析失败: " + e.getMessage());
         }
+
+        List<String> types = inferTypes(headers.size(), sample);
+        List<String> colNames = deduplicateColumnNames(headers);
+
+        // Create table
+        tableManagementService.createTable(tableName, colNames, types);
+
+        // Pass 2: stream rows in batches and insert
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8))) {
+
+            CSVParser parser = CSVFormat.DEFAULT
+                    .withFirstRecordAsHeader()
+                    .withIgnoreHeaderCase()
+                    .withTrim()
+                    .parse(reader);
+
+            int effectiveBatchSize = Math.max(50, batchSize * 10 / Math.max(colNames.size(), 1));
+            List<List<Object>> batch = new ArrayList<>(effectiveBatchSize);
+            int inserted = 0;
+
+            for (CSVRecord record : parser) {
+                List<Object> row = new ArrayList<>(colNames.size());
+                for (int i = 0; i < colNames.size(); i++) {
+                    String raw = i < record.size() ? record.get(i) : null;
+                    row.add(parseValue(raw, types.get(i)));
+                }
+                batch.add(row);
+
+                if (batch.size() >= effectiveBatchSize) {
+                    tableManagementService.batchInsert(tableName, colNames, batch);
+                    inserted += batch.size();
+                    batch.clear();
+                    log.debug("CSV batch inserted: {} rows so far", inserted);
+                }
+            }
+            // Flush remaining
+            if (!batch.isEmpty()) {
+                tableManagementService.batchInsert(tableName, colNames, batch);
+                inserted += batch.size();
+            }
+
+            log.info("CSV import complete: table={}, rows={}", tableName, inserted);
+
+        } catch (IOException e) {
+            throw new BusinessException("CSV 流式导入失败: " + e.getMessage());
+        }
+
+        List<ColumnInfo> columnInfos = new ArrayList<>();
+        for (int j = 0; j < colNames.size(); j++) {
+            columnInfos.add(new ColumnInfo(colNames.get(j), types.get(j)));
+        }
+        return new TableInfo(tableName, totalRows, columnInfos);
     }
 
-    // --------------- Excel Parsing ---------------
+    // ==================== Excel Streaming Import ====================
 
-    private List<SheetData> parseExcel(MultipartFile file) {
+    private List<TableInfo> importExcelStreaming(MultipartFile file, Long dsId) {
         // Allow larger byte arrays for big Excel files
         org.apache.poi.util.IOUtils.setByteArrayMaxOverride(500_000_000);
 
-        List<SheetData> sheets = new ArrayList<>();
+        List<TableInfo> result = new ArrayList<>();
 
         try (InputStream is = file.getInputStream();
              Workbook workbook = file.getOriginalFilename() != null
@@ -206,113 +237,108 @@ public class FileImportService {
                      ? new XSSFWorkbook(is)
                      : new HSSFWorkbook(is)) {
 
-            for (int i = 0; i < workbook.getNumberOfSheets(); i++) {
-                org.apache.poi.ss.usermodel.Sheet sheet = workbook.getSheetAt(i);
-                if (sheet.getLastRowNum() < 0) continue; // empty sheet
+            for (int sheetIdx = 0; sheetIdx < workbook.getNumberOfSheets(); sheetIdx++) {
+                org.apache.poi.ss.usermodel.Sheet sheet = workbook.getSheetAt(sheetIdx);
+                if (sheet.getLastRowNum() < 0) continue;
 
-                List<String> colNames = new ArrayList<>();
-                List<List<String>> sample = new ArrayList<>();
-                List<List<String>> allRows = new ArrayList<>();
-
-                // First row = header
-                Row headerRow = sheet.getRow(0);
-                if (headerRow == null) continue;
-
-                int colCount = headerRow.getLastCellNum();
-                Set<Integer> emptyCols = new HashSet<>();
-
-                for (int c = 0; c < colCount; c++) {
-                    Cell cell = headerRow.getCell(c);
-                    String name = cell == null ? "" : cell.toString().trim();
-                    if (name.isEmpty()) {
-                        name = "COL_" + (c + 1);
-                        emptyCols.add(c);
-                    }
-                    colNames.add(name);
+                String tableName = "T_" + dsId + "_" + sheetIdx;
+                TableInfo info = importSheetStreaming(sheet, tableName);
+                if (info != null) {
+                    result.add(info);
                 }
-
-                // Data rows
-                for (int r = 1; r <= sheet.getLastRowNum(); r++) {
-                    Row row = sheet.getRow(r);
-                    if (row == null) continue;
-                    if (isEmptyRow(row, colCount)) continue;
-
-                    List<String> values = new ArrayList<>(colCount);
-                    for (int c = 0; c < colCount; c++) {
-                        Cell cell = row.getCell(c);
-                        String val = cell == null ? null : cell.toString().trim();
-                        if (val != null && val.isEmpty()) val = null;
-                        values.add(val);
-                    }
-                    if (allRows.size() < sampleRows) {
-                        sample.add(values);
-                    }
-                    allRows.add(values);
-                }
-
-                if (allRows.isEmpty()) continue;
-
-                List<String> types = inferTypes(colCount, sample);
-                String sheetName = sheet.getSheetName();
-                sheets.add(new SheetData(sheetName, colNames, types, allRows));
             }
 
         } catch (IOException e) {
             throw new BusinessException("Excel 解析失败: " + e.getMessage());
         }
 
-        return sheets;
+        return result;
     }
 
-    // --------------- Import ---------------
+    private TableInfo importSheetStreaming(org.apache.poi.ss.usermodel.Sheet sheet, String tableName) {
+        // Header row
+        Row headerRow = sheet.getRow(0);
+        if (headerRow == null) return null;
 
-    private void importSheet(String tableName, SheetData sheet) {
-        // Sanitize and deduplicate column names
+        int colCount = headerRow.getLastCellNum();
         List<String> colNames = new ArrayList<>();
-        for (String raw : sheet.columnNames) {
-            String name = TableManagementService.sanitizeColumnName(raw);
-            // Deduplicate: append _2, _3, ... for repeated names
-            int suffix = 1;
-            String candidate = name;
-            while (colNames.contains(candidate)) {
-                suffix++;
-                candidate = name + "_" + suffix;
-            }
-            colNames.add(candidate);
+        for (int c = 0; c < colCount; c++) {
+            Cell cell = headerRow.getCell(c);
+            String name = (cell == null || cell.toString().trim().isEmpty())
+                    ? "COL_" + (c + 1) : cell.toString().trim();
+            colNames.add(name);
         }
 
-        // Build typed row values
-        List<List<Object>> typedRows = new ArrayList<>();
-        for (List<String> rawRow : sheet.allRows) {
-            List<Object> typedRow = new ArrayList<>(colNames.size());
-            for (int i = 0; i < colNames.size(); i++) {
-                typedRow.add(parseValue(rawRow.get(i), sheet.columnTypes.get(i)));
+        // Gather sample rows for type inference (first N non-empty data rows)
+        List<List<String>> sample = new ArrayList<>();
+        int totalRows = 0;
+        for (int r = 1; r <= sheet.getLastRowNum(); r++) {
+            Row row = sheet.getRow(r);
+            if (row == null || isEmptyRow(row, colCount)) continue;
+            totalRows++;
+            if (sample.size() < sampleRows) {
+                List<String> values = new ArrayList<>(colCount);
+                for (int c = 0; c < colCount; c++) {
+                    Cell cell = row.getCell(c);
+                    String val = (cell == null || cell.toString().trim().isEmpty()) ? null : cell.toString().trim();
+                    values.add(val);
+                }
+                sample.add(values);
             }
-            typedRows.add(typedRow);
         }
+
+        if (totalRows == 0) return null;
+
+        List<String> types = inferTypes(colCount, sample);
+        List<String> safeColNames = deduplicateColumnNames(colNames);
 
         // Create table
-        tableManagementService.createTable(tableName, colNames, sheet.columnTypes);
+        tableManagementService.createTable(tableName, safeColNames, types);
 
-        // Batch insert
-        for (int i = 0; i < typedRows.size(); i += batchSize) {
-            int end = Math.min(i + batchSize, typedRows.size());
-            List<List<Object>> batch = typedRows.subList(i, end);
-            tableManagementService.batchInsert(tableName, colNames, batch);
+        // Adjust batch size for wide tables to avoid H2 memory issues
+        int effectiveBatchSize = Math.max(50, batchSize * 10 / Math.max(colCount, 1));
+
+        // Stream rows in batches and insert
+        List<List<Object>> batch = new ArrayList<>(effectiveBatchSize);
+        int inserted = 0;
+
+        for (int r = 1; r <= sheet.getLastRowNum(); r++) {
+            Row row = sheet.getRow(r);
+            if (row == null || isEmptyRow(row, colCount)) continue;
+
+            List<Object> values = new ArrayList<>(colCount);
+            for (int c = 0; c < colCount; c++) {
+                Cell cell = row.getCell(c);
+                String raw = (cell == null || cell.toString().trim().isEmpty()) ? null : cell.toString().trim();
+                values.add(parseValue(raw, types.get(c)));
+            }
+            batch.add(values);
+
+            if (batch.size() >= effectiveBatchSize) {
+                tableManagementService.batchInsert(tableName, safeColNames, batch);
+                inserted += batch.size();
+                batch.clear();
+            }
+        }
+        // Flush remaining
+        if (!batch.isEmpty()) {
+            tableManagementService.batchInsert(tableName, safeColNames, batch);
+            inserted += batch.size();
         }
 
-        log.info("Imported table {}: {} rows, {} columns", tableName, typedRows.size(), colNames.size());
+        log.info("Excel sheet imported: table={}, sheet={}, rows={}", tableName, sheet.getSheetName(), inserted);
+
+        List<ColumnInfo> columnInfos = new ArrayList<>();
+        for (int j = 0; j < safeColNames.size(); j++) {
+            columnInfos.add(new ColumnInfo(safeColNames.get(j), types.get(j)));
+        }
+        return new TableInfo(tableName, totalRows, columnInfos);
     }
 
-    // --------------- Type Inference ---------------
+    // ==================== Type Inference ====================
 
-    /**
-     * Infer column types by scanning sample rows.
-     * Returns H2 type names: BIGINT, DOUBLE, DATE, TIMESTAMP, VARCHAR(1024)
-     */
     List<String> inferTypes(int colCount, List<List<String>> sample) {
         List<String> types = new ArrayList<>();
-
         for (int c = 0; c < colCount; c++) {
             boolean allNull = true;
             boolean allLong = true;
@@ -323,103 +349,114 @@ public class FileImportService {
             for (List<String> row : sample) {
                 String val = c < row.size() ? row.get(c) : null;
                 if (val == null) continue;
+                if (isPlaceholder(val)) continue; // skip NA, N/A, etc.
                 allNull = false;
-
                 if (allLong) allLong = isLong(val);
                 if (allDouble) allDouble = isDouble(val);
                 if (allDate) allDate = isDate(val);
                 if (allTimestamp) allTimestamp = isTimestamp(val);
             }
 
-            if (allNull) {
-                types.add("VARCHAR(1024)");
-            } else if (allLong) {
-                types.add("BIGINT");
-            } else if (allDouble) {
-                types.add("DOUBLE");
-            } else if (allTimestamp) {
-                types.add("TIMESTAMP");
-            } else if (allDate) {
-                types.add("DATE");
-            } else {
-                types.add("VARCHAR(1024)");
-            }
+            if (allNull) { types.add("VARCHAR(8192)"); }
+            else if (allLong) { types.add("BIGINT"); }
+            else if (allDouble) { types.add("DOUBLE"); }
+            else if (allTimestamp) { types.add("TIMESTAMP"); }
+            else if (allDate) { types.add("DATE"); }
+            else { types.add("VARCHAR(8192)"); }
         }
-
         return types;
     }
 
-    private static boolean isLong(String val) {
-        try {
-            Long.parseLong(val.replace(",", ""));
-            return true;
-        } catch (NumberFormatException e) {
-            return false;
-        }
-    }
+    // ==================== Value Parsing ====================
 
-    private static boolean isDouble(String val) {
-        try {
-            Double.parseDouble(val.replace(",", ""));
-            return true;
-        } catch (NumberFormatException e) {
-            return false;
-        }
-    }
-
-    private static boolean isDate(String val) {
-        for (DateTimeFormatter fmt : DATE_FORMATS) {
-            try {
-                LocalDate.parse(val, fmt);
-                return true;
-            } catch (DateTimeParseException ignored) {}
-        }
-        return false;
-    }
-
-    private static boolean isTimestamp(String val) {
-        for (DateTimeFormatter fmt : TIMESTAMP_FORMATS) {
-            try {
-                LocalDateTime.parse(val, fmt);
-                return true;
-            } catch (DateTimeParseException ignored) {}
-        }
-        return false;
-    }
-
-    /**
-     * Parse a string to the appropriate Java type for JDBC.
-     */
     private Object parseValue(String val, String h2Type) {
         if (val == null) return null;
+        // Treat common non-value placeholders as null
+        String upper = val.trim().toUpperCase();
+        if (upper.isEmpty() || upper.equals("NA") || upper.equals("N/A") || upper.equals("NULL")
+                || upper.equals("NONE") || upper.equals("-") || upper.equals("--")) {
+            return null;
+        }
         return switch (h2Type) {
             case "BIGINT" -> {
                 try { yield Long.parseLong(val.replace(",", "")); }
-                catch (NumberFormatException e) { yield val; }
+                catch (NumberFormatException e) { yield null; }
             }
             case "DOUBLE" -> {
                 try { yield Double.parseDouble(val.replace(",", "")); }
-                catch (NumberFormatException e) { yield val; }
+                catch (NumberFormatException e) { yield null; }
             }
             case "DATE" -> {
                 for (DateTimeFormatter fmt : DATE_FORMATS) {
                     try { yield LocalDate.parse(val, fmt); }
                     catch (DateTimeParseException ignored) {}
                 }
-                yield val;
+                yield null;
             }
             case "TIMESTAMP" -> {
                 for (DateTimeFormatter fmt : TIMESTAMP_FORMATS) {
                     try { yield LocalDateTime.parse(val, fmt); }
                     catch (DateTimeParseException ignored) {}
                 }
-                yield val;
+                yield null;
             }
             default -> val;
         };
     }
 
-    // --------------- Helpers ---------------
+    // ==================== Helpers ====================
+
+    /**
+     * Deduplicate column names: if two columns have the same sanitized name,
+     * append _2, _3, etc.
+     */
+    private List<String> deduplicateColumnNames(List<String> rawNames) {
+        List<String> result = new ArrayList<>();
+        for (String raw : rawNames) {
+            String name = TableManagementService.sanitizeColumnName(raw);
+            int suffix = 1;
+            String candidate = name;
+            while (result.contains(candidate)) {
+                suffix++;
+                candidate = name + "_" + suffix;
+            }
+            result.add(candidate);
+        }
+        return result;
+    }
+
+    private static boolean isPlaceholder(String val) {
+        if (val == null) return true;
+        String u = val.trim().toUpperCase();
+        return u.isEmpty() || u.equals("NA") || u.equals("N/A") || u.equals("NULL")
+                || u.equals("NONE") || u.equals("-") || u.equals("--");
+    }
+
+    private static boolean isLong(String val) {
+        try { Long.parseLong(val.replace(",", "")); return true; }
+        catch (NumberFormatException e) { return false; }
+    }
+
+    private static boolean isDouble(String val) {
+        try { Double.parseDouble(val.replace(",", "")); return true; }
+        catch (NumberFormatException e) { return false; }
+    }
+
+    private static boolean isDate(String val) {
+        for (DateTimeFormatter fmt : DATE_FORMATS) {
+            try { LocalDate.parse(val, fmt); return true; }
+            catch (DateTimeParseException ignored) {}
+        }
+        return false;
+    }
+
+    private static boolean isTimestamp(String val) {
+        for (DateTimeFormatter fmt : TIMESTAMP_FORMATS) {
+            try { LocalDateTime.parse(val, fmt); return true; }
+            catch (DateTimeParseException ignored) {}
+        }
+        return false;
+    }
 
     private String getExtension(String fileName) {
         int dot = fileName.lastIndexOf('.');
@@ -435,22 +472,5 @@ public class FileImportService {
             }
         }
         return true;
-    }
-
-    // --------------- Internal ---------------
-
-    private static class SheetData {
-        final String sheetName;
-        final List<String> columnNames;
-        final List<String> columnTypes;
-        final List<List<String>> allRows;
-
-        SheetData(String sheetName, List<String> columnNames,
-                  List<String> columnTypes, List<List<String>> allRows) {
-            this.sheetName = sheetName;
-            this.columnNames = columnNames;
-            this.columnTypes = columnTypes;
-            this.allRows = allRows;
-        }
     }
 }

@@ -1,7 +1,6 @@
 @echo off
 setlocal
-set JAVA_HOME=C:\Users\ningh\.jdks\openjdk-22.0.1
-set JAR=api\target\bi-api-1.0.0.jar
+set JAR=target\bi-api-1.0.0.jar
 
 if not exist "%JAR%" (
     echo Jar not found, building first...
