@@ -10,7 +10,7 @@ import { ResultTable } from "@/components/shared/ResultTable"
 import { PaginationBar } from "@/components/shared/PaginationBar"
 
 export function QueryPage() {
-  const [sql, setSql] = useState("SELECT *\nFROM BI_DATA.T_33\nLIMIT 10")
+  const [sql, setSql] = useState("")
   const [result, setResult] = useState<QueryResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -31,14 +31,6 @@ export function QueryPage() {
     }
   }, [sql])
 
-  const handleInsertTable = (name: string) => {
-    setSql((prev) => prev + `BI_DATA.${name}`)
-  }
-
-  const handleInsertColumn = (_table: string, column: string) => {
-    setSql((prev) => prev + `${column}`)
-  }
-
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -58,10 +50,7 @@ export function QueryPage() {
       <div className="flex gap-4">
         {/* Table browser */}
         <div className="w-56 shrink-0 rounded-md border p-2 max-h-[500px] overflow-auto">
-          <TableBrowser
-            onInsertTable={handleInsertTable}
-            onInsertColumn={handleInsertColumn}
-          />
+          <TableBrowser />
         </div>
 
         {/* SQL editor */}

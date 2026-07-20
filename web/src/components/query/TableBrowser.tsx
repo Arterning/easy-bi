@@ -1,18 +1,21 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { CaretDown, Database } from "@phosphor-icons/react"
 import { api, type TableInfo } from "@/lib/api"
 
-interface TableBrowserProps {
-  onInsertTable: (name: string) => void
-  onInsertColumn: (table: string, column: string) => void
+interface ContextMenu {
+  x: number
+  y: number
+  text: string
 }
 
-export function TableBrowser({ onInsertTable, onInsertColumn }: TableBrowserProps) {
+export function TableBrowser() {
   const [tables, setTables] = useState<TableInfo[]>([])
   const [loading, setLoading] = useState(true)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     api.listTables().then((res) => {
@@ -20,6 +23,23 @@ export function TableBrowser({ onInsertTable, onInsertColumn }: TableBrowserProp
       setLoading(false)
     })
   }, [])
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setContextMenu(null)
+      }
+    }
+    const handleScroll = () => setContextMenu(null)
+    if (contextMenu) {
+      document.addEventListener("mousedown", handleClickOutside)
+      document.addEventListener("scroll", handleScroll, true)
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside)
+      document.removeEventListener("scroll", handleScroll, true)
+    }
+  }, [contextMenu])
 
   const toggle = (name: string) => {
     setExpanded((prev) => {
@@ -29,6 +49,26 @@ export function TableBrowser({ onInsertTable, onInsertColumn }: TableBrowserProp
       return next
     })
   }
+
+  const handleContextMenu = useCallback((e: React.MouseEvent, text: string) => {
+    e.preventDefault()
+    setContextMenu({ x: e.clientX, y: e.clientY, text })
+  }, [])
+
+  const handleCopy = useCallback(async () => {
+    if (!contextMenu) return
+    try {
+      await navigator.clipboard.writeText(contextMenu.text)
+    } catch {
+      const textarea = document.createElement("textarea")
+      textarea.value = contextMenu.text
+      document.body.appendChild(textarea)
+      textarea.select()
+      document.execCommand("copy")
+      document.body.removeChild(textarea)
+    }
+    setContextMenu(null)
+  }, [contextMenu])
 
   if (loading) {
     return (
@@ -51,10 +91,8 @@ export function TableBrowser({ onInsertTable, onInsertColumn }: TableBrowserProp
           <div key={table.name}>
             <div
               className="flex cursor-pointer items-center gap-1 rounded-md px-2 py-1 hover:bg-accent text-sm"
-              onClick={() => {
-                toggle(table.name)
-                onInsertTable(table.name)
-              }}
+              onClick={() => toggle(table.name)}
+              onContextMenu={(e) => handleContextMenu(e, table.name)}
             >
               <CaretDown
                 className={`size-3 text-muted-foreground transition-transform ${expanded.has(table.name) ? "rotate-0" : "-rotate-90"}`}
@@ -71,7 +109,7 @@ export function TableBrowser({ onInsertTable, onInsertColumn }: TableBrowserProp
                   <div
                     key={col.name}
                     className="flex cursor-pointer items-center gap-1 rounded-md px-2 py-0.5 text-xs hover:bg-accent"
-                    onClick={() => onInsertColumn(table.name, col.name)}
+                    onContextMenu={(e) => handleContextMenu(e, col.name)}
                   >
                     <span className="font-mono text-blue-600 dark:text-blue-400">{col.name}</span>
                     <span className="ml-auto text-muted-foreground">{col.type}</span>
@@ -81,6 +119,21 @@ export function TableBrowser({ onInsertTable, onInsertColumn }: TableBrowserProp
             )}
           </div>
         ))
+      )}
+
+      {contextMenu && (
+        <div
+          ref={menuRef}
+          className="fixed z-50 min-w-[120px] rounded-md border bg-popover p-1 shadow-md"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+        >
+          <button
+            className="flex w-full items-center rounded-sm px-2 py-1.5 text-sm text-popover-foreground hover:bg-accent"
+            onClick={handleCopy}
+          >
+            复制
+          </button>
+        </div>
       )}
     </div>
   )
