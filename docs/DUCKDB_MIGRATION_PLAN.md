@@ -168,9 +168,3 @@ conn.setReadOnly(true);
 | Step 5 | 全链路测试（上传 Excel → 建表 → JOIN 查询 → 导出） | 低 |
 
 ---
-
-## 9. 待确认
-
-- [ ] 如果 JPA `ddl-auto: update` 在 DuckDB 上失败，是否接受改为手动 `schema-duckdb.sql` + `ddl-auto: none`？
-- [ ] DuckDB 文件模式在 Windows 上路径有无特殊问题？（已在 Windows 上广泛使用，应该没问题）
-- [ ] 旧 H2 数据库文件 `data/bi_data.mv.db` 迁移后不再需要，是否保留？

@@ -10,7 +10,6 @@ import {
 } from "@phosphor-icons/react"
 import { api, type Dataset, type QueryResult } from "@/lib/api"
 import { SqlEditor } from "@/components/query/SqlEditor"
-import { DatasetFormDialog } from "@/components/dataset/DatasetFormDialog"
 import { ResultTable } from "@/components/shared/ResultTable"
 import { PaginationBar } from "@/components/shared/PaginationBar"
 
@@ -19,7 +18,6 @@ export function DatasetDetailPage() {
   const navigate = useNavigate()
   const [dataset, setDataset] = useState<Dataset | null>(null)
   const [loading, setLoading] = useState(true)
-  const [editOpen, setEditOpen] = useState(false)
 
   // Query
   const [result, setResult] = useState<QueryResult | null>(null)
@@ -111,7 +109,7 @@ export function DatasetDetailPage() {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setEditOpen(true)}>
+          <Button variant="outline" onClick={() => navigate(`/datasets/${id}/edit`)}>
             <Pencil className="size-4 mr-1" />
             编辑
           </Button>
@@ -165,18 +163,6 @@ export function DatasetDetailPage() {
           />
         </div>
       )}
-
-      {/* Edit dialog */}
-      <DatasetFormDialog
-        open={editOpen}
-        onOpenChange={setEditOpen}
-        initial={dataset}
-        onSave={async (req) => {
-          await api.updateDataset(dataset.id, req)
-          setEditOpen(false)
-          await load()
-        }}
-      />
     </div>
   )
 }

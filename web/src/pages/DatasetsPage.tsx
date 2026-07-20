@@ -129,7 +129,7 @@ export function DatasetsPage() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => { setEditing(ds); setFormOpen(true) }}
+                        onClick={() => navigate(`/datasets/${ds.id}/edit`)}
                       >
                         <Pencil className="size-4" />
                       </Button>
