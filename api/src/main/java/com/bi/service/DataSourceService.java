@@ -26,6 +26,10 @@ public class DataSourceService {
         return repository.findAll(pageable);
     }
 
+    public List<DataSource> listAll() {
+        return repository.findAll();
+    }
+
     public DataSource getById(Long id) {
         return repository.findById(id)
                 .orElseThrow(() -> new BusinessException("数据源不存在: id=" + id));

@@ -2,8 +2,8 @@ import { useState, useEffect, useRef, useCallback } from "react"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
-import { CaretDown, Database } from "@phosphor-icons/react"
-import { api, type TableInfo } from "@/lib/api"
+import { CaretDown, Database, FileXls, FileText } from "@phosphor-icons/react"
+import { api, type DataSourceTreeItem } from "@/lib/api"
 
 interface ContextMenu {
   x: number
@@ -25,16 +25,24 @@ async function copyToClipboard(text: string) {
   }
 }
 
+const FileIcon = ({ type }: { type: string }) =>
+  type === "excel" ? (
+    <FileXls className="size-3.5 text-emerald-600" weight="duotone" />
+  ) : (
+    <FileText className="size-3.5 text-amber-600" weight="duotone" />
+  )
+
 export function TableBrowser() {
-  const [tables, setTables] = useState<TableInfo[]>([])
+  const [tree, setTree] = useState<DataSourceTreeItem[]>([])
   const [loading, setLoading] = useState(true)
-  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const [expandedDs, setExpandedDs] = useState<Set<number>>(new Set())
+  const [expandedTable, setExpandedTable] = useState<Set<string>>(new Set())
   const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     api.listTables().then((res) => {
-      setTables(res.data)
+      setTree(res.data)
       setLoading(false)
     })
   }, [])
@@ -56,8 +64,17 @@ export function TableBrowser() {
     }
   }, [contextMenu])
 
-  const toggle = (name: string) => {
-    setExpanded((prev) => {
+  const toggleDs = (id: number) => {
+    setExpandedDs((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const toggleTable = (name: string) => {
+    setExpandedTable((prev) => {
       const next = new Set(prev)
       if (next.has(name)) next.delete(name)
       else next.add(name)
@@ -103,37 +120,58 @@ export function TableBrowser() {
   return (
     <div className="space-y-1">
       <p className="px-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
-        可用表
+        数据源
       </p>
-      {tables.length === 0 ? (
-        <p className="px-2 text-xs text-muted-foreground">暂无数据表</p>
+      {tree.length === 0 ? (
+        <p className="px-2 text-xs text-muted-foreground">暂无数据</p>
       ) : (
-        tables.map((table) => (
-          <div key={table.name}>
+        tree.map((ds) => (
+          <div key={ds.id}>
             <div
               className="flex cursor-pointer items-center gap-1 rounded-md px-2 py-1 hover:bg-accent text-sm"
-              onClick={() => toggle(table.name)}
-              onContextMenu={(e) => handleTableContextMenu(e, table.name)}
+              onClick={() => toggleDs(ds.id)}
             >
               <CaretDown
-                className={`size-3 text-muted-foreground transition-transform ${expanded.has(table.name) ? "rotate-0" : "-rotate-90"}`}
+                className={`size-3 text-muted-foreground transition-transform ${expandedDs.has(ds.id) ? "rotate-0" : "-rotate-90"}`}
               />
-              <Database className="size-3.5 text-blue-500" weight="duotone" />
-              <span className="font-medium">{table.name}</span>
-              <Badge variant="secondary" className="ml-auto text-[10px] px-1 py-0">
-                {table.rowCount}
+              <FileIcon type={ds.fileType} />
+              <span className="font-medium truncate flex-1">{ds.fileName}</span>
+              <Badge variant="secondary" className="text-[10px] px-1 py-0">
+                {ds.tables.length}
               </Badge>
             </div>
-            {expanded.has(table.name) && (
-              <div className="ml-5 space-y-0.5 mt-0.5">
-                {table.columns.map((col) => (
-                  <div
-                    key={col.name}
-                    className="flex cursor-pointer items-center gap-1 rounded-md px-2 py-0.5 text-xs hover:bg-accent"
-                    onContextMenu={(e) => handleColumnContextMenu(e, table.name, col.name)}
-                  >
-                    <span className="font-mono text-blue-600 dark:text-blue-400">{col.name}</span>
-                    <span className="ml-auto text-muted-foreground">{col.type}</span>
+            {expandedDs.has(ds.id) && (
+              <div className="ml-4 space-y-0.5 mt-0.5">
+                {ds.tables.map((table) => (
+                  <div key={table.name}>
+                    <div
+                      className="flex cursor-pointer items-center gap-1 rounded-md px-2 py-1 hover:bg-accent text-sm"
+                      onClick={() => toggleTable(table.name)}
+                      onContextMenu={(e) => handleTableContextMenu(e, table.name)}
+                    >
+                      <CaretDown
+                        className={`size-2.5 text-muted-foreground transition-transform ${expandedTable.has(table.name) ? "rotate-0" : "-rotate-90"}`}
+                      />
+                      <Database className="size-3.5 text-blue-500" weight="duotone" />
+                      <span className="font-medium truncate flex-1">{table.name}</span>
+                      <Badge variant="secondary" className="ml-auto text-[10px] px-1 py-0">
+                        {table.rowCount}
+                      </Badge>
+                    </div>
+                    {expandedTable.has(table.name) && (
+                      <div className="ml-5 space-y-0.5 mt-0.5">
+                        {table.columns.map((col) => (
+                          <div
+                            key={col.name}
+                            className="flex cursor-pointer items-center gap-1 rounded-md px-2 py-0.5 text-xs hover:bg-accent"
+                            onContextMenu={(e) => handleColumnContextMenu(e, table.name, col.name)}
+                          >
+                            <span className="font-mono text-blue-600 dark:text-blue-400">{col.name}</span>
+                            <span className="ml-auto text-muted-foreground">{col.type}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

@@ -27,6 +27,13 @@ export interface TableInfo {
   columns: ColumnInfo[]
 }
 
+export interface DataSourceTreeItem {
+  id: number
+  fileName: string
+  fileType: string
+  tables: TableInfo[]
+}
+
 export interface UploadResult {
   dataSourceId: number
   fileName: string
@@ -221,6 +228,6 @@ export const api = {
   },
 
   listTables() {
-    return request<TableInfo[]>("/query/tables")
+    return request<DataSourceTreeItem[]>("/query/tables")
   },
 }
