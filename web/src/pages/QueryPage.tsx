@@ -13,6 +13,8 @@ function stripSqlComments(sql: string): string {
   return sql
     .replace(/\/\*[\s\S]*?\*\//g, "")
     .replace(/--.*$/gm, "")
+    .trimEnd()
+    .replace(/;$/, "")
 }
 
 export function QueryPage() {
