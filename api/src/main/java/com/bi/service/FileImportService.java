@@ -110,6 +110,7 @@ public class FileImportService {
                 }
             }
         } catch (Exception e) {
+            log.error("数据源导入失败: {}", e.getMessage(), e);
             // Rollback: drop created tables
             for (String t : tableNameList) {
                 try { tableManagementService.dropTable(t); } catch (Exception ignored) {}

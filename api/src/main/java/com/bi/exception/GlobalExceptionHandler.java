@@ -16,6 +16,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiResponse<Void>> handleBusiness(BusinessException e) {
+        log.warn("业务异常: {}", e.getMessage());
         return ResponseEntity.badRequest()
                 .body(ApiResponse.error(e.getCode(), e.getMessage()));
     }
