@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { useParams, useNavigate } from "react-router-dom"
+import { useParams, useSearchParams, useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -10,11 +10,14 @@ import { api, type Dataset } from "@/lib/api"
 
 export function DatasetEditPage() {
   const { id } = useParams<{ id: string }>()
+  const [searchParams] = useSearchParams()
   const navigate = useNavigate()
+  const isCreate = !id
+
   const [dataset, setDataset] = useState<Dataset | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(!isCreate)
   const [name, setName] = useState("")
-  const [sql, setSql] = useState("")
+  const [sql, setSql] = useState(isCreate ? searchParams.get("sql") ?? "" : "")
   const [description, setDescription] = useState("")
   const [saving, setSaving] = useState(false)
 
@@ -29,15 +32,24 @@ export function DatasetEditPage() {
   }, [id])
 
   const handleSave = async () => {
-    if (!id || !name.trim() || !sql.trim()) return
+    if (!name.trim() || !sql.trim()) return
     setSaving(true)
     try {
-      await api.updateDataset(Number(id), {
-        name: name.trim(),
-        sql: sql.trim(),
-        description: description.trim() || undefined,
-      })
-      navigate(`/datasets/${id}`)
+      if (isCreate) {
+        const res = await api.createDataset({
+          name: name.trim(),
+          sql: sql.trim(),
+          description: description.trim() || undefined,
+        })
+        navigate(`/datasets/${res.data.id}`)
+      } else {
+        await api.updateDataset(Number(id), {
+          name: name.trim(),
+          sql: sql.trim(),
+          description: description.trim() || undefined,
+        })
+        navigate(`/datasets/${id}`)
+      }
     } finally {
       setSaving(false)
     }
@@ -54,7 +66,7 @@ export function DatasetEditPage() {
     )
   }
 
-  if (!dataset) {
+  if (!isCreate && !dataset) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
         <p className="text-lg">数据集不存在</p>
@@ -68,10 +80,10 @@ export function DatasetEditPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate(`/datasets/${id}`)}>
+        <Button variant="ghost" size="icon" onClick={() => navigate(isCreate ? "/datasets" : `/datasets/${id}`)}>
           <ArrowLeft className="size-5" />
         </Button>
-        <h1 className="text-2xl font-bold">编辑数据集</h1>
+        <h1 className="text-2xl font-bold">{isCreate ? "创建数据集" : "编辑数据集"}</h1>
       </div>
 
       <div className="space-y-4 max-w-3xl">
@@ -108,7 +120,7 @@ export function DatasetEditPage() {
             <FloppyDisk className="size-4 mr-1" />
             {saving ? "保存中..." : "保存"}
           </Button>
-          <Button variant="outline" onClick={() => navigate(`/datasets/${id}`)}>
+          <Button variant="outline" onClick={() => navigate(isCreate ? "/datasets" : `/datasets/${id}`)}>
             取消
           </Button>
         </div>

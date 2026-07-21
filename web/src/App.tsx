@@ -14,6 +14,7 @@ const router = createBrowserRouter([
       { index: true, element: <Navigate to="/datasources" replace /> },
       { path: "datasources", element: <DataSourcesPage /> },
       { path: "datasets", element: <DatasetsPage /> },
+      { path: "datasets/new", element: <DatasetEditPage /> },
       { path: "datasets/:id", element: <DatasetDetailPage /> },
       { path: "datasets/:id/edit", element: <DatasetEditPage /> },
       { path: "query", element: <QueryPage /> },
