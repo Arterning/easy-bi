@@ -9,6 +9,12 @@ import { SaveDatasetDialog } from "@/components/query/SaveDatasetDialog"
 import { ResultTable } from "@/components/shared/ResultTable"
 import { PaginationBar } from "@/components/shared/PaginationBar"
 
+function stripSqlComments(sql: string): string {
+  return sql
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/--.*$/gm, "")
+}
+
 export function QueryPage() {
   const [sql, setSql] = useState("")
   const [result, setResult] = useState<QueryResult | null>(null)
@@ -16,12 +22,14 @@ export function QueryPage() {
   const [error, setError] = useState<string | null>(null)
   const [saveOpen, setSaveOpen] = useState(false)
 
+  const cleanSql = stripSqlComments(sql)
+
   const execute = useCallback(async (p = 0) => {
-    if (!sql.trim()) return
+    if (!cleanSql.trim()) return
     setLoading(true)
     setError(null)
     try {
-      const res = await api.executeQuery(sql, p, 50)
+      const res = await api.executeQuery(cleanSql, p, 50)
       setResult(res.data)
     } catch (e) {
       setError(e instanceof Error ? e.message : "查询失败")
@@ -112,7 +120,7 @@ export function QueryPage() {
         </div>
       )}
 
-      <SaveDatasetDialog open={saveOpen} onOpenChange={setSaveOpen} sql={sql} />
+      <SaveDatasetDialog open={saveOpen} onOpenChange={setSaveOpen} sql={cleanSql} />
     </div>
   )
 }
