@@ -1,6 +1,7 @@
 package com.bi.service;
 
 import com.bi.exception.BusinessException;
+import com.bi.model.dto.AppendResult;
 import com.bi.model.dto.UploadResult;
 import com.bi.model.dto.UploadResult.ColumnInfo;
 import com.bi.model.dto.UploadResult.TableInfo;
@@ -177,6 +178,178 @@ public class FileImportService {
             return List.of("Sheet1");
         }
         return names.isEmpty() ? List.of("Sheet1") : names;
+    }
+
+    // ==================== Append ====================
+
+    @Transactional
+    public AppendResult appendToDataSource(Long dsId, MultipartFile file) {
+        DataSource ds = dataSourceRepository.findById(dsId)
+                .orElseThrow(() -> new BusinessException("数据源不存在: id=" + dsId));
+
+        String originalName = file.getOriginalFilename();
+        List<String> existingTables = Arrays.asList(ds.getTableNames().split(","));
+        existingTables = existingTables.stream().map(String::trim).filter(s -> !s.isEmpty()).toList();
+
+        if (existingTables.isEmpty()) {
+            throw new BusinessException("该数据源下没有可追加的表");
+        }
+
+        // Save file temporarily
+        Path tmpPath;
+        try {
+            Files.createDirectories(uploadDir);
+            tmpPath = uploadDir.resolve("_append_" + System.currentTimeMillis() + "_" + originalName);
+            Files.copy(file.getInputStream(), tmpPath, StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException e) {
+            throw new BusinessException("文件保存失败: " + e.getMessage());
+        }
+        String filePath = tmpPath.toAbsolutePath().toString().replace("\\", "/");
+
+        List<AppendResult.TableAppend> results = new ArrayList<>();
+
+        try {
+            String ext = getExtension(originalName).toLowerCase();
+            List<String> newSheetNames;
+
+            if (EXCEL_EXTENSIONS.contains(ext)) {
+                newSheetNames = getSheetNames(filePath);
+            } else {
+                // CSV → single "sheet"
+                newSheetNames = List.of("data");
+            }
+
+            int matchCount = Math.min(existingTables.size(), newSheetNames.size());
+
+            for (int i = 0; i < existingTables.size(); i++) {
+                String tableName = existingTables.get(i);
+                AppendResult.TableAppend ta = new AppendResult.TableAppend();
+                ta.setTableName(tableName);
+
+                if (i >= matchCount) {
+                    ta.setSkipped(true);
+                    ta.setSkipReason("新文件 Sheet 数量(" + newSheetNames.size() + ")少于目标表数量(" + existingTables.size() + ")，跳过");
+                    ta.setRowsBefore(tableManagementService.countRows(tableName));
+                    ta.setRowsAppended(0);
+                    ta.setRowsAfter(ta.getRowsBefore());
+                    results.add(ta);
+                    continue;
+                }
+
+                int rowsBefore = tableManagementService.countRows(tableName);
+                ta.setRowsBefore(rowsBefore);
+
+                String sheetName = newSheetNames.get(i);
+                appendSheetToTable(filePath, sheetName, tableName, ext, ta);
+                results.add(ta);
+            }
+
+        } catch (Exception e) {
+            if (e instanceof BusinessException) throw (BusinessException) e;
+            throw new BusinessException("追加失败: " + e.getMessage());
+        } finally {
+            try { Files.deleteIfExists(tmpPath); } catch (IOException ignored) {}
+        }
+
+        return new AppendResult(dsId, originalName, results);
+    }
+
+    private void appendSheetToTable(String filePath, String sheetName, String tableName,
+                                     String fileExt, AppendResult.TableAppend result) {
+        String tmpTable = "_append_tmp_" + System.currentTimeMillis();
+
+        // 1. Import new data into temp table
+        try {
+            if (EXCEL_EXTENSIONS.contains(fileExt)) {
+                duckDb.execute("CREATE TEMP TABLE " + tmpTable + " AS " +
+                        "SELECT * FROM read_xlsx('" + filePath + "', sheet='" + sheetName.replace("'", "''") + "')");
+            } else {
+                duckDb.execute("CREATE TEMP TABLE " + tmpTable + " AS " +
+                        "SELECT * FROM read_csv('" + filePath + "', header=true, auto_detect=true)");
+            }
+        } catch (Exception e) {
+            throw new BusinessException("读取文件失败 (sheet=" + sheetName + "): " + e.getMessage());
+        }
+
+        try {
+            // 2. Get column names (case-insensitive matching)
+            List<String> targetCols = duckDb.query(
+                    "SELECT column_name FROM information_schema.columns " +
+                    "WHERE table_schema='main' AND table_name=? ORDER BY ordinal_position",
+                    (rs, rn) -> rs.getString("column_name"), tableName);
+
+            List<String> sourceCols = duckDb.query(
+                    "SELECT column_name FROM information_schema.columns " +
+                    "WHERE table_schema='main' AND table_name=? ORDER BY ordinal_position",
+                    (rs, rn) -> rs.getString("column_name"), tmpTable);
+
+            Set<String> targetLower = new HashSet<>();
+            for (String c : targetCols) targetLower.add(c.toLowerCase());
+
+            List<String> newColumns = new ArrayList<>();
+            List<String> matchedColumns = new ArrayList<>();
+            List<String> missingColumns = new ArrayList<>();
+
+            for (String sc : sourceCols) {
+                if (targetLower.contains(sc.toLowerCase())) {
+                    matchedColumns.add(sc);
+                } else {
+                    newColumns.add(sc);
+                }
+            }
+            Set<String> sourceLower = new HashSet<>();
+            for (String sc : sourceCols) sourceLower.add(sc.toLowerCase());
+            for (String tc : targetCols) {
+                if (!sourceLower.contains(tc.toLowerCase())) {
+                    missingColumns.add(tc);
+                }
+            }
+
+            // 3. Add new columns to target table
+            for (String nc : newColumns) {
+                String ddl = "ALTER TABLE main.\"" + tableName + "\" ADD COLUMN \"" + nc + "\" VARCHAR";
+                log.info("Adding column: {}", ddl);
+                duckDb.execute(ddl);
+            }
+
+            // 4. Build INSERT: use subquery to align columns (missing target cols → NULL)
+            StringBuilder insertSql = new StringBuilder();
+            insertSql.append("INSERT INTO main.\"").append(tableName).append("\" (");
+            // All target columns (original + newly added)
+            List<String> allTargetCols = new ArrayList<>(targetCols);
+            allTargetCols.addAll(newColumns);
+            for (int i = 0; i < allTargetCols.size(); i++) {
+                if (i > 0) insertSql.append(", ");
+                insertSql.append("\"").append(allTargetCols.get(i)).append("\"");
+            }
+            insertSql.append(") SELECT ");
+            for (int i = 0; i < allTargetCols.size(); i++) {
+                if (i > 0) insertSql.append(", ");
+                String col = allTargetCols.get(i);
+                // If the temp table has this column, use it; otherwise NULL
+                if (sourceLower.contains(col.toLowerCase())) {
+                    insertSql.append("\"").append(col).append("\"");
+                } else {
+                    insertSql.append("NULL");
+                }
+            }
+            insertSql.append(" FROM ").append(tmpTable);
+
+            log.info("Appending: {}", insertSql);
+            duckDb.execute(insertSql.toString());
+
+            // 5. Count result
+            int rowsAfter = tableManagementService.countRows(tableName);
+            result.setRowsAppended(rowsAfter - result.getRowsBefore());
+            result.setRowsAfter(rowsAfter);
+            result.setNewColumns(newColumns);
+            result.setMatchedColumns(matchedColumns);
+            result.setMissingColumns(missingColumns);
+            result.setSkipped(false);
+
+        } finally {
+            try { duckDb.execute("DROP TABLE IF EXISTS " + tmpTable); } catch (Exception ignored) {}
+        }
     }
 
     // ==================== Helpers ====================

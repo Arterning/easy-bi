@@ -8,6 +8,7 @@ import { api, type DataSourceDetail } from "@/lib/api"
 import { PaginationBar } from "@/components/shared/PaginationBar"
 import { UploadDialog } from "@/components/datasource/UploadDialog"
 import { PreviewSheet } from "@/components/datasource/PreviewSheet"
+import { AppendDialog } from "@/components/datasource/AppendDialog"
 import { DataSourceCard } from "@/components/datasource/DataSourceCard"
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog"
 
@@ -22,6 +23,7 @@ export function DataSourcesPage() {
   const [uploadOpen, setUploadOpen] = useState(false)
   const [preview, setPreview] = useState<{ dsId: number; table: string } | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null)
+  const [appendTarget, setAppendTarget] = useState<number | null>(null)
 
   const load = useCallback(async (p = page) => {
     setLoading(true)
@@ -112,6 +114,7 @@ export function DataSourcesPage() {
               key={ds.id}
               ds={ds}
               onPreview={(table) => setPreview({ dsId: ds.id, table })}
+              onAppend={(id) => setAppendTarget(id)}
               onDelete={(id) => setDeleteTarget(id)}
             />
           ))}
@@ -139,6 +142,13 @@ export function DataSourcesPage() {
         confirmText="确认删除"
         variant="destructive"
         onConfirm={handleDelete}
+      />
+
+      <AppendDialog
+        open={appendTarget != null}
+        onOpenChange={(o) => { if (!o) setAppendTarget(null) }}
+        dataSourceId={appendTarget ?? 0}
+        tableCount={appendTarget != null ? (data.find(d => d.id === appendTarget)?.tables.length ?? 0) : 0}
       />
     </div>
   )

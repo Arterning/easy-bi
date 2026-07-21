@@ -1,6 +1,7 @@
 package com.bi.controller;
 
 import com.bi.model.dto.ApiResponse;
+import com.bi.model.dto.AppendResult;
 import com.bi.model.dto.UploadResult;
 import com.bi.model.entity.DataSource;
 import com.bi.service.DataSourceService;
@@ -101,5 +102,13 @@ public class DataSourceController {
         result.put("totalRows", tableManagementService.countRows(tableName));
 
         return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    @PostMapping("/{id}/append")
+    public ResponseEntity<ApiResponse<AppendResult>> append(
+            @PathVariable Long id,
+            @RequestParam("file") MultipartFile file) {
+        AppendResult result = fileImportService.appendToDataSource(id, file);
+        return ResponseEntity.ok(ApiResponse.ok("追加成功", result));
     }
 }

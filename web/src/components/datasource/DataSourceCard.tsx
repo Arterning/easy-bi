@@ -6,16 +6,17 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
-import { CaretDown, Eye, Trash, FileCsv, FileXls } from "@phosphor-icons/react"
+import { CaretDown, Eye, Trash, FileCsv, FileXls, Plus } from "@phosphor-icons/react"
 import type { DataSourceDetail } from "@/lib/api"
 
 interface DataSourceCardProps {
   ds: DataSourceDetail
   onPreview: (tableName: string) => void
+  onAppend: (id: number) => void
   onDelete: (id: number) => void
 }
 
-export function DataSourceCard({ ds, onPreview, onDelete }: DataSourceCardProps) {
+export function DataSourceCard({ ds, onPreview, onAppend, onDelete }: DataSourceCardProps) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -41,17 +42,20 @@ export function DataSourceCard({ ds, onPreview, onDelete }: DataSourceCardProps)
               </div>
             </div>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-destructive hover:text-destructive"
-            onClick={(e) => {
-              e.stopPropagation()
-              onDelete(ds.id)
-            }}
-          >
-            <Trash className="size-4" />
-          </Button>
+          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+            <Button variant="ghost" size="sm" onClick={() => onAppend(ds.id)}>
+              <Plus className="size-4 mr-1" />
+              追加
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-destructive hover:text-destructive"
+              onClick={() => onDelete(ds.id)}
+            >
+              <Trash className="size-4" />
+            </Button>
+          </div>
       </CollapsibleTrigger>
 
       <CollapsibleContent>

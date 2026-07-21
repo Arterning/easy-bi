@@ -66,6 +66,25 @@ export interface DatasetCreateRequest {
   description?: string
 }
 
+// Append
+export interface AppendResult {
+  dataSourceId: number
+  fileName: string
+  tables: TableAppend[]
+}
+
+export interface TableAppend {
+  tableName: string
+  rowsBefore: number
+  rowsAppended: number
+  rowsAfter: number
+  newColumns: string[]
+  matchedColumns: string[]
+  missingColumns: string[]
+  skipped: boolean
+  skipReason: string | null
+}
+
 // Query
 export interface QueryResult {
   columns: string[]
@@ -141,6 +160,18 @@ export const api = {
     return request<PreviewResult>(
       `/datasources/${id}/preview?table=${table}&rows=${rows}`,
     )
+  },
+
+  appendDataSource(id: number, file: File) {
+    const form = new FormData()
+    form.append("file", file)
+    return fetch(`${BASE_URL}/datasources/${id}/append`, {
+      method: "POST",
+      body: form,
+    }).then((r) => {
+      if (!r.ok) return r.json().then((b) => { throw new Error(b.message ?? "Append failed") })
+      return r.json() as Promise<ApiResponse<AppendResult>>
+    })
   },
 
   // Datasets
