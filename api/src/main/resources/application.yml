@@ -27,3 +27,15 @@ bi:
     timeout-seconds: 60
     max-rows-per-query: 100000
   upload-dir: ./data/uploads
+
+# ---- AI Agent ----
+ai:
+  llm:
+    provider: openai
+    base-url: https://api.deepseek.com/v1
+    api-key: ${DEEPSEEK_API_KEY:}
+    model: deepseek-chat
+    max-tokens: 4096
+    temperature: 0.1
+  agent:
+    max-rounds: 10

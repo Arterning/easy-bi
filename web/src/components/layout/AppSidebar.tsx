@@ -11,9 +11,10 @@ import {
   SidebarFooter,
   SidebarRail,
 } from "@/components/ui/sidebar"
-import { FileText, Table, Terminal, Database } from "@phosphor-icons/react"
+import { FileText, Table, Terminal, Database, Brain } from "@phosphor-icons/react"
 
 const items = [
+  { title: "AI 助手", url: "/ai", icon: Brain },
   { title: "数据源", url: "/datasources", icon: Database },
   { title: "数据集", url: "/datasets", icon: Table },
   { title: "SQL 查询", url: "/query", icon: Terminal },

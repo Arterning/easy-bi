@@ -5,6 +5,7 @@ import { DatasetsPage } from "@/pages/DatasetsPage"
 import { DatasetDetailPage } from "@/pages/DatasetDetailPage"
 import { DatasetEditPage } from "@/pages/DatasetEditPage"
 import { QueryPage } from "@/pages/QueryPage"
+import { AiPage } from "@/pages/AiPage"
 
 const router = createBrowserRouter([
   {
@@ -18,6 +19,7 @@ const router = createBrowserRouter([
       { path: "datasets/:id", element: <DatasetDetailPage /> },
       { path: "datasets/:id/edit", element: <DatasetEditPage /> },
       { path: "query", element: <QueryPage /> },
+      { path: "ai", element: <AiPage /> },
     ],
   },
 ])
