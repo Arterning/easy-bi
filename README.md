@@ -9,6 +9,7 @@
 - **📊 数据集管理** — 保存常用 SQL 为数据集，支持分页查看、CSV 导出
 - **➕ 数据追加** — 后续上传同结构文件，按 Sheet 顺序自动追加，新增列自动扩充
 - **🛡️ SQL 安全** — 仅允许 SELECT/WITH 等只读语句，禁止 DML/DDL
+- **🤖 AI 助手** — 用自然语言描述需求，AI 自动查表、写 SQL、执行、验证，一键保存为数据集
 - **🌓 深色模式** — 自适应系统主题
 
 ## 技术栈
@@ -20,6 +21,7 @@
 | 分析引擎 | DuckDB（JdbcTemplate，支持 `read_xlsx`/`read_csv` 原生导入） |
 | 前端 | React 19 + TypeScript + Shadcn/ui v4 + Tailwind CSS v4 |
 | SQL 编辑器 | CodeMirror 6（SQL 语法高亮） |
+| AI Agent | OpenAI 兼容接口（DeepSeek / GPT / Ollama 等），SSE 流式响应 |
 | 图标 | Phosphor Icons |
 
 ## 快速开始
@@ -29,7 +31,22 @@
 - JDK 17+
 - Node.js 18+ / pnpm
 
-### 1. 启动后端
+### 1. 设置 AI API Key（可选，不设置则 AI 功能不可用）
+
+```bash
+# Windows (CMD)
+set DEEPSEEK_API_KEY=sk-your-key-here
+
+# Windows (PowerShell)
+$env:DEEPSEEK_API_KEY="sk-your-key-here"
+
+# Linux / macOS
+export DEEPSEEK_API_KEY=sk-your-key-here
+```
+
+> 兼容所有 OpenAI 接口格式的模型（DeepSeek / GPT-4o / Ollama / Qwen 等），在 `application.yml` 中改 `ai.llm.base-url` 和 `ai.llm.model` 即可切换。
+
+### 2. 启动后端
 
 ```bash
 # 构建 jar
@@ -51,7 +68,7 @@ java -Xms512m -Xmx4g -Dfile.encoding=UTF-8 -jar target\bi-api-1.0.0.jar
 - API: http://localhost:8080
 - H2 Console: http://localhost:8080/h2-console
 
-### 2. 启动前端
+### 3. 启动前端
 
 ```bash
 cd web
@@ -61,7 +78,7 @@ pnpm dev
 
 浏览器打开 http://localhost:5173
 
-### 3. 快速体验
+### 4. 快速体验
 
 1. 准备一个 Excel 文件（如销售订单表）
 2. 打开 http://localhost:5173 → **数据源** → 点击「上传文件」
@@ -75,6 +92,13 @@ pnpm dev
    ```
 5. `Ctrl+Enter` 执行，查看结果
 6. 点击「保存为数据集」，后续可在「数据集」中快速复用
+
+### 5. AI 对话生成报表
+
+1. 打开 http://localhost:5173 → **AI 助手**
+2. 输入需求："统计每个部门的销售额，从高到低"
+3. AI 自动查表 → 写 SQL → 执行 → 展示结果
+4. AI 自动将 SQL 保存为数据集
 
 ## 项目结构
 
@@ -97,6 +121,12 @@ easy-bi/
 │       │   ├── DataSourceService.java    # 数据源业务
 │       │   ├── DatasetService.java       # 数据集业务
 │       │   └── QueryService.java         # SQL 校验 + 分页执行
+│       ├── ai/
+│       │   ├── AiController.java         # SSE 流式端点
+│       │   ├── AgentService.java         # Agent 循环 + 会话记忆
+│       │   ├── LlmClient.java            # LLM HTTP 客户端（OpenAI 兼容）
+│       │   ├── ToolRegistry.java         # 工具注册
+│       │   └── tools/                    # 8 个 AI 工具（查表/写SQL/建数据集等）
 │       └── model/
 │           ├── entity/                   # JPA 实体（DataSource, Dataset）
 │           └── dto/                      # 数据传输对象
@@ -109,7 +139,7 @@ easy-bi/
 │       │   ├── dataset/                  # 数据集表单
 │       │   ├── query/                    # SQL 编辑器 + 表浏览器
 │       │   └── shared/                   # ResultTable / PaginationBar
-│       └── pages/                        # 三个主页面
+│       └── pages/                        # AI 助手 / 数据源 / 数据集 / SQL 查询
 ├── build-api.bat                 # 构建后端 jar
 ├── run-api.bat                   # 启动后端
 └── data/                         # 运行时数据（H2 + DuckDB + 上传文件）
@@ -137,6 +167,9 @@ GET    /api/datasets/{id}/export        导出 CSV
 
 POST   /api/query/execute               即席 SQL 查询
 GET    /api/query/tables                浏览所有可用表
+
+POST   /api/ai/chat                     AI 对话（SSE 流式）
+DELETE /api/ai/session/{id}             清除 AI 会话
 ```
 
 ## 配置
@@ -149,6 +182,13 @@ spring.servlet.multipart.max-file-size: 200MB   # 上传文件大小限制
 duckdb.url: jdbc:duckdb:./data/bi_data.duckdb   # DuckDB 文件路径
 bi.query.timeout-seconds: 60             # SQL 查询超时
 bi.upload-dir: ./data/uploads            # 上传文件存储目录
+
+# AI Agent（可选，不配置则 AI 功能不可用）
+ai.llm.base-url: https://api.deepseek.com/v1   # LLM API 地址
+ai.llm.api-key: ${DEEPSEEK_API_KEY}             # 从环境变量读取
+ai.llm.model: deepseek-chat                     # 模型名
+ai.llm.temperature: 0.1                         # 低温度保证 SQL 准确性
+ai.agent.max-rounds: 10                         # 最大工具调用轮数
 ```
 
 ## License
