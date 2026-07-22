@@ -1,11 +1,11 @@
 import { useState, useCallback } from "react"
-import { useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Play, FloppyDisk } from "@phosphor-icons/react"
 import { api, type QueryResult } from "@/lib/api"
 import { SqlEditor } from "@/components/query/SqlEditor"
 import { TableBrowser } from "@/components/query/TableBrowser"
+import { SaveDatasetDialog } from "@/components/query/SaveDatasetDialog"
 import { ResultTable } from "@/components/shared/ResultTable"
 import { PaginationBar } from "@/components/shared/PaginationBar"
 
@@ -18,11 +18,11 @@ function stripSqlComments(sql: string): string {
 }
 
 export function QueryPage() {
-  const navigate = useNavigate()
   const [sql, setSql] = useState("")
   const [result, setResult] = useState<QueryResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [saveOpen, setSaveOpen] = useState(false)
 
   const cleanSql = stripSqlComments(sql)
 
@@ -46,7 +46,7 @@ export function QueryPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">SQL 查询</h1>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => navigate(`/datasets/new?sql=${encodeURIComponent(cleanSql)}`)} disabled={!sql.trim()}>
+          <Button variant="outline" onClick={() => setSaveOpen(true)} disabled={!sql.trim()}>
             <FloppyDisk className="size-4 mr-1" />
             保存为数据集
           </Button>
@@ -122,6 +122,7 @@ export function QueryPage() {
         </div>
       )}
 
+      <SaveDatasetDialog open={saveOpen} onOpenChange={setSaveOpen} sql={cleanSql} />
     </div>
   )
 }

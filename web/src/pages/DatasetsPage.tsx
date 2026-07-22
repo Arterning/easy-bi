@@ -23,9 +23,8 @@ export function DatasetsPage() {
   const [loading, setLoading] = useState(true)
 
   // Dialogs
-  const [formOpen, setFormOpen] = useState(false)
-  const [editing, setEditing] = useState<Dataset | null>(null)
   const navigate = useNavigate()
+  const [editing, setEditing] = useState<Dataset | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null)
 
   const load = useCallback(async (p = page) => {
@@ -42,12 +41,6 @@ export function DatasetsPage() {
   useEffect(() => {
     load()
   }, [load])
-
-  const handleCreate = async (req: { name: string; sql: string; description?: string }) => {
-    await api.createDataset(req)
-    setPage(0)
-    await load(0)
-  }
 
   const handleUpdate = async (req: { name: string; sql: string; description?: string }) => {
     if (!editing) return
@@ -77,7 +70,7 @@ export function DatasetsPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">数据集管理</h1>
-        <Button onClick={() => { setEditing(null); setFormOpen(true) }}>
+        <Button onClick={() => navigate("/datasets/new")}>
           <Plus className="size-4 mr-1" />
           创建数据集
         </Button>
@@ -154,12 +147,6 @@ export function DatasetsPage() {
       )}
 
       <PaginationBar page={page} totalPages={totalPages} onPageChange={(p) => { setPage(p); load(p) }} />
-
-      <DatasetFormDialog
-        open={formOpen && !editing}
-        onOpenChange={setFormOpen}
-        onSave={handleCreate}
-      />
 
       {editing && (
         <DatasetFormDialog
