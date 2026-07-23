@@ -1,10 +1,10 @@
 package com.bi.ai;
 
+import com.bi.service.LlmConfigService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -25,23 +25,10 @@ public class LlmClient {
             .build();
     private final ObjectMapper mapper = new ObjectMapper();
 
-    private final String baseUrl;
-    private final String apiKey;
-    private final String model;
-    private final int maxTokens;
-    private final double temperature;
+    private final LlmConfigService config;
 
-    public LlmClient(
-            @Value("${ai.llm.base-url}") String baseUrl,
-            @Value("${ai.llm.api-key:}") String apiKey,
-            @Value("${ai.llm.model}") String model,
-            @Value("${ai.llm.max-tokens:4096}") int maxTokens,
-            @Value("${ai.llm.temperature:0.1}") double temperature) {
-        this.baseUrl = baseUrl;
-        this.apiKey = apiKey;
-        this.model = model;
-        this.maxTokens = maxTokens;
-        this.temperature = temperature;
+    public LlmClient(LlmConfigService config) {
+        this.config = config;
     }
 
     /**
@@ -49,10 +36,10 @@ public class LlmClient {
      */
     public LlmResponse chat(List<Map<String, Object>> messages, List<Map<String, Object>> tools) {
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("model", model);
+        body.put("model", config.getModel());
         body.put("messages", messages);
-        body.put("max_tokens", maxTokens);
-        body.put("temperature", temperature);
+        body.put("max_tokens", config.getMaxTokens());
+        body.put("temperature", config.getTemperature());
         if (tools != null && !tools.isEmpty()) {
             body.put("tools", tools);
             body.put("tool_choice", "auto");
@@ -63,9 +50,9 @@ public class LlmClient {
             log.debug("LLM request ({} chars)", json.length());
 
             var request = HttpRequest.newBuilder()
-                    .uri(URI.create(baseUrl + "/chat/completions"))
+                    .uri(URI.create(config.getBaseUrl() + "/chat/completions"))
                     .header("Content-Type", "application/json")
-                    .header("Authorization", "Bearer " + apiKey)
+                    .header("Authorization", "Bearer " + config.getApiKey())
                     .timeout(Duration.ofSeconds(120))
                     .POST(HttpRequest.BodyPublishers.ofString(json))
                     .build();

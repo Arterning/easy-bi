@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { Brain, PaperPlaneRight, Gear, CaretDown, Spinner, XCircle } from "@phosphor-icons/react"
+import { Brain, PaperPlaneRight, CaretDown, Spinner, XCircle } from "@phosphor-icons/react"
 
 interface ChatMessage {
   id: string
@@ -129,9 +129,6 @@ export function AiPage() {
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <Brain className="size-6" weight="duotone" />AI 助手
         </h1>
-        <Button variant="ghost" size="sm" disabled>
-          <Gear className="size-4 mr-1" />DeepSeek
-        </Button>
       </div>
 
       <div className="flex-1 overflow-auto space-y-3 pr-2">

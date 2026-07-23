@@ -110,6 +110,23 @@ export interface Page<T> {
   size: number
 }
 
+// Settings / LLM
+export interface LlmSettings {
+  baseUrl: string
+  apiKey: string   // masked (e.g. "sk-****abcd")
+  model: string
+  maxTokens: number
+  temperature: number
+}
+
+export interface LlmSettingsUpdate {
+  baseUrl: string
+  apiKey: string   // send masked ("****") or empty to keep existing
+  model: string
+  maxTokens: number
+  temperature: number
+}
+
 // ---- API client ----
 
 // In production (after build), frontend is served by backend on same origin.
@@ -231,5 +248,17 @@ export const api = {
 
   listTables() {
     return request<DataSourceTreeItem[]>("/query/tables")
+  },
+
+  // Settings
+  getLlmSettings() {
+    return request<LlmSettings>("/settings/llm")
+  },
+
+  updateLlmSettings(req: LlmSettingsUpdate) {
+    return request<LlmSettings>("/settings/llm", {
+      method: "PUT",
+      body: JSON.stringify(req),
+    })
   },
 }
