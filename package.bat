@@ -27,6 +27,8 @@ echo       Done.
 
 echo.
 echo [4/4] Assembling portable distribution...
+taskkill /f /im javaw.exe >nul 2>&1
+timeout /t 1 /nobreak >nul
 if exist dist rmdir /s /q dist
 mkdir dist\easy-bi
 
@@ -38,19 +40,8 @@ echo       Creating JRE (jlink)...
 call jlink --output dist\easy-bi\jre --add-modules java.base,java.desktop,java.instrument,java.logging,java.management,java.naming,java.net.http,java.security.jgss,java.sql,java.transaction.xa,java.xml,jdk.unsupported,jdk.management --strip-debug --no-man-pages --no-header-files --compress zip-6 2>nul
 if errorlevel 1 goto :fail_jlink
 
-REM Create run.bat
-(echo @echo off
-echo.
-echo === easy-bi ===
-echo Port: 8080
-echo Data: %%USERPROFILE%%\.easy-bi\
-echo.
-echo Starting...
-echo.
-start jre\bin\javaw.exe -Xms256m -Xmx2g -Dfile.encoding=UTF-8 -Dspring.profiles.active=prod -jar easy-bi.jar
-echo Opening browser...
-start http://localhost:8080
-) > dist\easy-bi\run.bat
+REM Copy run.bat
+copy %~dp0run-template.bat dist\easy-bi\run.bat >nul
 
 echo.
 echo ============================================
