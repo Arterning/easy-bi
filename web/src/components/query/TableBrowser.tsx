@@ -153,7 +153,12 @@ export function TableBrowser() {
                         className={`size-2.5 text-muted-foreground transition-transform ${expandedTable.has(table.name) ? "rotate-0" : "-rotate-90"}`}
                       />
                       <Database className="size-3.5 text-blue-500" weight="duotone" />
-                      <span className="font-medium truncate flex-1">{table.name}</span>
+                      <div className="flex-1 min-w-0">
+                        <span className="font-medium truncate block">{table.displayName ?? table.name}</span>
+                        {table.displayName && table.displayName !== table.name && (
+                          <span className="text-[10px] text-muted-foreground font-mono truncate block">{table.name}</span>
+                        )}
+                      </div>
                       <Badge variant="secondary" className="ml-auto text-[10px] px-1 py-0">
                         {table.rowCount}
                       </Badge>

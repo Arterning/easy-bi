@@ -3,6 +3,7 @@ package com.bi.controller;
 import com.bi.model.dto.ApiResponse;
 import com.bi.model.dto.QueryRequest;
 import com.bi.model.dto.QueryResult;
+import com.bi.model.entity.BiTable;
 import com.bi.model.entity.DataSource;
 import com.bi.service.DataSourceService;
 import com.bi.service.QueryService;
@@ -45,15 +46,15 @@ public class QueryController {
             entry.put("fileName", ds.getFileName());
             entry.put("fileType", ds.getFileType());
 
-            String[] tableNames = ds.getTableNames().split(",");
             List<Map<String, Object>> tables = new ArrayList<>();
-            for (String tn : tableNames) {
-                String t = tn.trim();
-                if (t.isEmpty()) continue;
+            for (BiTable bt : ds.getTables()) {
+                String physicalName = bt.getPhysicalName();
                 Map<String, Object> tableInfo = new LinkedHashMap<>();
-                tableInfo.put("name", t);
-                tableInfo.put("rowCount", tableManagementService.countRows(t));
-                tableInfo.put("columns", tableManagementService.getTableColumns(t));
+                tableInfo.put("name", physicalName);
+                tableInfo.put("displayName", bt.getDisplayName());
+                tableInfo.put("sourceSheet", bt.getSourceSheet());
+                tableInfo.put("rowCount", tableManagementService.countRows(physicalName));
+                tableInfo.put("columns", tableManagementService.getTableColumns(physicalName));
                 tables.add(tableInfo);
             }
             entry.put("tables", tables);

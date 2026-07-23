@@ -11,7 +11,7 @@ import type { DataSourceDetail } from "@/lib/api"
 
 interface DataSourceCardProps {
   ds: DataSourceDetail
-  onPreview: (tableName: string) => void
+  onPreview: (tableName: string, displayName?: string) => void
   onAppend: (id: number) => void
   onDelete: (id: number) => void
 }
@@ -63,7 +63,10 @@ export function DataSourceCard({ ds, onPreview, onAppend, onDelete }: DataSource
           {ds.tables.map((table) => (
             <div key={table.name} className="flex items-center justify-between rounded-md bg-muted/50 px-3 py-2">
               <div>
-                <p className="text-sm font-medium font-mono">{table.name}</p>
+                <p className="text-sm font-medium">{table.displayName ?? table.name}</p>
+                {table.displayName && table.displayName !== table.name && (
+                  <p className="text-[10px] text-muted-foreground font-mono">{table.name}</p>
+                )}
                 <p className="text-xs text-muted-foreground">
                   {table.rowCount} 行 &middot;{" "}
                   {table.columns.map((c) => `${c.name} (${c.type})`).join(", ")}
@@ -72,7 +75,7 @@ export function DataSourceCard({ ds, onPreview, onAppend, onDelete }: DataSource
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => onPreview(table.name)}
+                onClick={() => onPreview(table.name, table.displayName)}
               >
                 <Eye className="size-4 mr-1" />
                 预览

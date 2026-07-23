@@ -1,6 +1,6 @@
 package com.bi.service;
 
-import com.bi.model.dto.UploadResult.ColumnInfo;
+import com.bi.model.dto.ColumnInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;

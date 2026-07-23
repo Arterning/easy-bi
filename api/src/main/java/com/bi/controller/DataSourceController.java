@@ -2,7 +2,10 @@ package com.bi.controller;
 
 import com.bi.model.dto.ApiResponse;
 import com.bi.model.dto.AppendResult;
+import com.bi.model.dto.ColumnInfo;
+import com.bi.model.dto.TableInfo;
 import com.bi.model.dto.UploadResult;
+import com.bi.model.entity.BiTable;
 import com.bi.model.entity.DataSource;
 import com.bi.service.DataSourceService;
 import com.bi.service.FileImportService;
@@ -14,7 +17,6 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.*;
-import com.bi.model.dto.UploadResult;
 
 @RestController
 @RequestMapping("/api/datasources")
@@ -53,16 +55,15 @@ public class DataSourceController {
         result.put("fileSize", ds.getFileSize());
         result.put("createdAt", ds.getCreatedAt());
 
-        // Enrich with table/column info
-        String[] tableNames = ds.getTableNames().split(",");
         List<Map<String, Object>> tables = new ArrayList<>();
-        for (String tn : tableNames) {
-            String t = tn.trim();
-            if (t.isEmpty()) continue;
+        for (BiTable bt : ds.getTables()) {
+            String physicalName = bt.getPhysicalName();
             Map<String, Object> tableInfo = new LinkedHashMap<>();
-            tableInfo.put("name", t);
-            tableInfo.put("rowCount", tableManagementService.countRows(t));
-            tableInfo.put("columns", tableManagementService.getTableColumns(t));
+            tableInfo.put("name", physicalName);
+            tableInfo.put("displayName", bt.getDisplayName());
+            tableInfo.put("sourceSheet", bt.getSourceSheet());
+            tableInfo.put("rowCount", tableManagementService.countRows(physicalName));
+            tableInfo.put("columns", tableManagementService.getTableColumns(physicalName));
             tables.add(tableInfo);
         }
         result.put("tables", tables);
@@ -82,11 +83,9 @@ public class DataSourceController {
             @RequestParam("table") String tableName,
             @RequestParam(value = "rows", defaultValue = "20") int rows) {
 
-        // Verify table belongs to this datasource
         DataSource ds = dataSourceService.getById(id);
-        boolean found = Arrays.stream(ds.getTableNames().split(","))
-                .map(String::trim)
-                .anyMatch(t -> t.equalsIgnoreCase(tableName));
+        boolean found = ds.getTables().stream()
+                .anyMatch(bt -> bt.getPhysicalName().equalsIgnoreCase(tableName));
         if (!found) {
             return ResponseEntity.badRequest()
                     .body(ApiResponse.error(400, "表不属于该数据源"));
@@ -94,7 +93,7 @@ public class DataSourceController {
 
         String sql = "SELECT * FROM main.\"" + tableName + "\" LIMIT " + Math.min(rows, 200);
         List<List<Object>> rowsData = tableManagementService.query(sql);
-        List<UploadResult.ColumnInfo> columns = tableManagementService.getTableColumns(tableName);
+        List<ColumnInfo> columns = tableManagementService.getTableColumns(tableName);
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("columns", columns);

@@ -2,6 +2,8 @@ package com.bi.model.entity;
 
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "datasources")
@@ -20,8 +22,8 @@ public class DataSource {
     @Column(nullable = false)
     private Long fileSize;
 
-    @Column(nullable = false, length = 4000)
-    private String tableNames;
+    @OneToMany(mappedBy = "dataSource", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<BiTable> tables = new ArrayList<>();
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -45,8 +47,8 @@ public class DataSource {
     public Long getFileSize() { return fileSize; }
     public void setFileSize(Long fileSize) { this.fileSize = fileSize; }
 
-    public String getTableNames() { return tableNames; }
-    public void setTableNames(String tableNames) { this.tableNames = tableNames; }
+    public List<BiTable> getTables() { return tables; }
+    public void setTables(List<BiTable> tables) { this.tables = tables; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

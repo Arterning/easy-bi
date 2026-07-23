@@ -1,6 +1,7 @@
 package com.bi.service;
 
 import com.bi.exception.BusinessException;
+import com.bi.model.entity.BiTable;
 import com.bi.model.entity.DataSource;
 import com.bi.repository.DataSourceRepository;
 import org.springframework.data.domain.Page;
@@ -38,13 +39,8 @@ public class DataSourceService {
     @Transactional
     public void delete(Long id) {
         DataSource ds = getById(id);
-        // Drop BI_DATA tables
-        String[] tables = ds.getTableNames().split(",");
-        for (String table : tables) {
-            String t = table.trim();
-            if (!t.isEmpty()) {
-                tableManagementService.dropTable(t);
-            }
+        for (BiTable bt : ds.getTables()) {
+            tableManagementService.dropTable(bt.getPhysicalName());
         }
         repository.delete(ds);
     }

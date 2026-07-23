@@ -15,9 +15,10 @@ interface PreviewSheetProps {
   onOpenChange: (open: boolean) => void
   dataSourceId: number
   tableName: string
+  displayName?: string
 }
 
-export function PreviewSheet({ open, onOpenChange, dataSourceId, tableName }: PreviewSheetProps) {
+export function PreviewSheet({ open, onOpenChange, dataSourceId, tableName, displayName }: PreviewSheetProps) {
   const [data, setData] = useState<PreviewResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -47,7 +48,7 @@ export function PreviewSheet({ open, onOpenChange, dataSourceId, tableName }: Pr
         <SheetHeader>
           <SheetTitle>数据预览</SheetTitle>
           <SheetDescription>
-            表 {tableName} &middot; {data ? `${data.totalRows} 行` : "..."}
+            表 {displayName ?? tableName} &middot; {data ? `${data.totalRows} 行` : "..."}
           </SheetDescription>
         </SheetHeader>
 

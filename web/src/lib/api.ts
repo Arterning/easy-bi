@@ -12,7 +12,6 @@ export interface DataSource {
   fileName: string
   fileType: string
   fileSize: number
-  tableNames: string
   createdAt: string
 }
 
@@ -23,6 +22,8 @@ export interface ColumnInfo {
 
 export interface TableInfo {
   name: string
+  displayName: string
+  sourceSheet: string | null
   rowCount: number
   columns: ColumnInfo[]
 }

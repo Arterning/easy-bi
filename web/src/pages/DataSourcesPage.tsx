@@ -21,7 +21,7 @@ export function DataSourcesPage() {
 
   // Dialogs
   const [uploadOpen, setUploadOpen] = useState(false)
-  const [preview, setPreview] = useState<{ dsId: number; table: string } | null>(null)
+  const [preview, setPreview] = useState<{ dsId: number; table: string; displayName?: string } | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null)
   const [appendTarget, setAppendTarget] = useState<number | null>(null)
 
@@ -113,7 +113,7 @@ export function DataSourcesPage() {
             <DataSourceCard
               key={ds.id}
               ds={ds}
-              onPreview={(table) => setPreview({ dsId: ds.id, table })}
+              onPreview={(table, displayName) => setPreview({ dsId: ds.id, table, displayName })}
               onAppend={(id) => setAppendTarget(id)}
               onDelete={(id) => setDeleteTarget(id)}
             />
@@ -131,6 +131,7 @@ export function DataSourcesPage() {
           onOpenChange={(o) => { if (!o) setPreview(null) }}
           dataSourceId={preview.dsId}
           tableName={preview.table}
+          displayName={preview.displayName}
         />
       )}
 

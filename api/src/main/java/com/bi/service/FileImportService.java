@@ -2,10 +2,12 @@ package com.bi.service;
 
 import com.bi.exception.BusinessException;
 import com.bi.model.dto.AppendResult;
+import com.bi.model.dto.ColumnInfo;
+import com.bi.model.dto.TableInfo;
 import com.bi.model.dto.UploadResult;
-import com.bi.model.dto.UploadResult.ColumnInfo;
-import com.bi.model.dto.UploadResult.TableInfo;
+import com.bi.model.entity.BiTable;
 import com.bi.model.entity.DataSource;
+import com.bi.repository.BiTableRepository;
 import com.bi.repository.DataSourceRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,15 +33,18 @@ public class FileImportService {
     private static final Set<String> EXCEL_EXTENSIONS = Set.of("xls", "xlsx");
 
     private final DataSourceRepository dataSourceRepository;
+    private final BiTableRepository biTableRepository;
     private final TableManagementService tableManagementService;
     private final JdbcTemplate duckDb;
     private final Path uploadDir;
 
     public FileImportService(DataSourceRepository dataSourceRepository,
+                             BiTableRepository biTableRepository,
                              TableManagementService tableManagementService,
                              JdbcTemplate duckDbJdbcTemplate,
                              @Value("${bi.upload-dir:./data/uploads}") String uploadDir) {
         this.dataSourceRepository = dataSourceRepository;
+        this.biTableRepository = biTableRepository;
         this.tableManagementService = tableManagementService;
         this.duckDb = duckDbJdbcTemplate;
         this.uploadDir = Paths.get(uploadDir).toAbsolutePath().normalize();
@@ -63,7 +68,7 @@ public class FileImportService {
             throw new BusinessException("不支持的文件类型: ." + extension + " (仅支持 csv/xls/xlsx)");
         }
 
-        // Save uploaded file to disk (DuckDB needs a file path, not a stream)
+        // Save uploaded file to disk
         Path savedPath;
         try {
             Files.createDirectories(uploadDir);
@@ -79,40 +84,54 @@ public class FileImportService {
         ds.setFileName(originalName);
         ds.setFileType(fileType);
         ds.setFileSize(file.getSize());
-        ds.setTableNames("");
         ds = dataSourceRepository.save(ds);
 
-        Long dsId = ds.getId();
         List<TableInfo> tableInfos = new ArrayList<>();
-        List<String> tableNameList = new ArrayList<>();
+        List<BiTable> biTables = new ArrayList<>();
+        List<String> duckDbTables = new ArrayList<>();
 
         try {
             if (fileType.equals("csv")) {
-                String tableName = "T_" + dsId;
-                importCsv(filePath, tableName);
-                int rowCount = tableManagementService.countRows(tableName);
-                List<ColumnInfo> columns = tableManagementService.getTableColumns(tableName);
-                tableInfos.add(new TableInfo(tableName, rowCount, columns));
-                tableNameList.add(tableName);
+                String uuid = UUID.randomUUID().toString().substring(0, 8);
+                String physicalName = "t_" + uuid;
+                importCsv(filePath, physicalName);
+                int rowCount = tableManagementService.countRows(physicalName);
+                List<ColumnInfo> columns = tableManagementService.getTableColumns(physicalName);
+                String displayName = stripExtension(originalName);
+                tableInfos.add(new TableInfo(physicalName, displayName, null, rowCount, columns));
+
+                BiTable bt = new BiTable();
+                bt.setDataSource(ds);
+                bt.setPhysicalName(physicalName);
+                bt.setDisplayName(displayName);
+                bt.setSourceSheet(null);
+                biTables.add(bt);
+                duckDbTables.add(physicalName);
             } else {
-                // Excel: detect sheet names, import each as a separate table
                 List<String> sheetNames = getSheetNames(filePath);
                 if (sheetNames.isEmpty()) {
                     throw new BusinessException("Excel 文件中没有可读的 Sheet");
                 }
                 for (int i = 0; i < sheetNames.size(); i++) {
-                    String tableName = "T_" + dsId + "_" + i;
-                    importExcelSheet(filePath, sheetNames.get(i), tableName);
-                    int rowCount = tableManagementService.countRows(tableName);
-                    List<ColumnInfo> columns = tableManagementService.getTableColumns(tableName);
-                    tableInfos.add(new TableInfo(tableName, rowCount, columns));
-                    tableNameList.add(tableName);
+                    String uuid = UUID.randomUUID().toString().substring(0, 8);
+                    String physicalName = "t_" + uuid;
+                    importExcelSheet(filePath, sheetNames.get(i), physicalName);
+                    int rowCount = tableManagementService.countRows(physicalName);
+                    List<ColumnInfo> columns = tableManagementService.getTableColumns(physicalName);
+                    tableInfos.add(new TableInfo(physicalName, sheetNames.get(i), sheetNames.get(i), rowCount, columns));
+
+                    BiTable bt = new BiTable();
+                    bt.setDataSource(ds);
+                    bt.setPhysicalName(physicalName);
+                    bt.setDisplayName(sheetNames.get(i));
+                    bt.setSourceSheet(sheetNames.get(i));
+                    biTables.add(bt);
+                    duckDbTables.add(physicalName);
                 }
             }
         } catch (Exception e) {
             log.error("数据源导入失败: {}", e.getMessage(), e);
-            // Rollback: drop created tables
-            for (String t : tableNameList) {
+            for (String t : duckDbTables) {
                 try { tableManagementService.dropTable(t); } catch (Exception ignored) {}
             }
             dataSourceRepository.delete(ds);
@@ -120,10 +139,8 @@ public class FileImportService {
             throw new BusinessException("导入失败: " + e.getMessage());
         }
 
-        ds.setTableNames(String.join(",", tableNameList));
-        dataSourceRepository.save(ds);
-
-        return new UploadResult(dsId, originalName, fileType, file.getSize(), tableInfos);
+        biTableRepository.saveAll(biTables);
+        return new UploadResult(ds.getId(), originalName, fileType, file.getSize(), tableInfos);
     }
 
     // ==================== DuckDB native import ====================
@@ -153,7 +170,6 @@ public class FileImportService {
         if (filePath.toLowerCase().endsWith(".xlsx")) {
             return getXlsxSheetNames(filePath);
         }
-        // .xls — binary format, just try the first sheet
         return List.of("Sheet1");
     }
 
@@ -189,8 +205,7 @@ public class FileImportService {
                 .orElseThrow(() -> new BusinessException("数据源不存在: id=" + dsId));
 
         String originalName = file.getOriginalFilename();
-        List<String> existingTables = Arrays.asList(ds.getTableNames().split(","));
-        existingTables = existingTables.stream().map(String::trim).filter(s -> !s.isEmpty()).toList();
+        List<BiTable> existingTables = biTableRepository.findByDataSourceId(dsId);
 
         if (existingTables.isEmpty()) {
             throw new BusinessException("该数据源下没有可追加的表");
@@ -216,14 +231,14 @@ public class FileImportService {
             if (EXCEL_EXTENSIONS.contains(ext)) {
                 newSheetNames = getSheetNames(filePath);
             } else {
-                // CSV → single "sheet"
                 newSheetNames = List.of("data");
             }
 
             int matchCount = Math.min(existingTables.size(), newSheetNames.size());
 
             for (int i = 0; i < existingTables.size(); i++) {
-                String tableName = existingTables.get(i);
+                BiTable bt = existingTables.get(i);
+                String tableName = bt.getPhysicalName();
                 AppendResult.TableAppend ta = new AppendResult.TableAppend();
                 ta.setTableName(tableName);
 
@@ -259,7 +274,6 @@ public class FileImportService {
                                      String fileExt, AppendResult.TableAppend result) {
         String tmpTable = "_append_tmp_" + System.currentTimeMillis();
 
-        // 1. Import new data into temp table
         try {
             if (EXCEL_EXTENSIONS.contains(fileExt)) {
                 duckDb.execute("CREATE TEMP TABLE " + tmpTable + " AS " +
@@ -273,7 +287,6 @@ public class FileImportService {
         }
 
         try {
-            // 2. Get column names (case-insensitive matching)
             List<String> targetCols = duckDb.query(
                     "SELECT column_name FROM information_schema.columns " +
                     "WHERE table_schema='main' AND table_name=? ORDER BY ordinal_position",
@@ -306,17 +319,14 @@ public class FileImportService {
                 }
             }
 
-            // 3. Add new columns to target table
             for (String nc : newColumns) {
                 String ddl = "ALTER TABLE main.\"" + tableName + "\" ADD COLUMN \"" + nc + "\" VARCHAR";
                 log.info("Adding column: {}", ddl);
                 duckDb.execute(ddl);
             }
 
-            // 4. Build INSERT: use subquery to align columns (missing target cols → NULL)
             StringBuilder insertSql = new StringBuilder();
             insertSql.append("INSERT INTO main.\"").append(tableName).append("\" (");
-            // All target columns (original + newly added)
             List<String> allTargetCols = new ArrayList<>(targetCols);
             allTargetCols.addAll(newColumns);
             for (int i = 0; i < allTargetCols.size(); i++) {
@@ -327,7 +337,6 @@ public class FileImportService {
             for (int i = 0; i < allTargetCols.size(); i++) {
                 if (i > 0) insertSql.append(", ");
                 String col = allTargetCols.get(i);
-                // If the temp table has this column, use it; otherwise NULL
                 if (sourceLower.contains(col.toLowerCase())) {
                     insertSql.append("\"").append(col).append("\"");
                 } else {
@@ -339,7 +348,6 @@ public class FileImportService {
             log.info("Appending: {}", insertSql);
             duckDb.execute(insertSql.toString());
 
-            // 5. Count result
             int rowsAfter = tableManagementService.countRows(tableName);
             result.setRowsAppended(rowsAfter - result.getRowsBefore());
             result.setRowsAfter(rowsAfter);
@@ -358,5 +366,10 @@ public class FileImportService {
     private String getExtension(String fileName) {
         int dot = fileName.lastIndexOf('.');
         return dot < 0 ? "" : fileName.substring(dot + 1);
+    }
+
+    private String stripExtension(String fileName) {
+        int dot = fileName.lastIndexOf('.');
+        return dot < 0 ? fileName : fileName.substring(0, dot);
     }
 }

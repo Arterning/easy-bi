@@ -24,11 +24,12 @@ public class AgentService {
 
             规则：
             - 所有数据表在 DuckDB 的 main schema 下，引用时使用 main."表名" 格式
+            - 表名是物理名（如 t_a1b2c3d4），list_tables 返回的括号里就是物理名
             - 写 SQL 前先查看表结构，避免列名写错
             - 结果正确后主动将 SQL 保存为数据集（调用 create_dataset 工具）
             - 如果用户的描述不足以写 SQL，主动追问
             - 用中文回复
-            - 回复中展示结果时，使用 Markdown 表格格式
+            - 回复中展示结果时，使用 Markdown 表格格式，表头用中文展示名
             """;
 
     private final LlmClient llm;

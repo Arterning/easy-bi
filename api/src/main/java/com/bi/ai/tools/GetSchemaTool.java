@@ -3,7 +3,7 @@ package com.bi.ai.tools;
 import com.bi.ai.AiTool;
 import com.bi.ai.ToolRegistry;
 import com.bi.service.TableManagementService;
-import com.bi.model.dto.UploadResult.ColumnInfo;
+import com.bi.model.dto.ColumnInfo;
 import org.springframework.stereotype.Component;
 
 import java.util.*;

@@ -36,47 +36,4 @@ public class UploadResult {
 
     public List<TableInfo> getTables() { return tables; }
     public void setTables(List<TableInfo> tables) { this.tables = tables; }
-
-    // --- Inner ---
-
-    public static class TableInfo {
-        private String name;
-        private int rowCount;
-        private List<ColumnInfo> columns;
-
-        public TableInfo() {}
-
-        public TableInfo(String name, int rowCount, List<ColumnInfo> columns) {
-            this.name = name;
-            this.rowCount = rowCount;
-            this.columns = columns;
-        }
-
-        public String getName() { return name; }
-        public void setName(String name) { this.name = name; }
-
-        public int getRowCount() { return rowCount; }
-        public void setRowCount(int rowCount) { this.rowCount = rowCount; }
-
-        public List<ColumnInfo> getColumns() { return columns; }
-        public void setColumns(List<ColumnInfo> columns) { this.columns = columns; }
-    }
-
-    public static class ColumnInfo {
-        private String name;
-        private String type;
-
-        public ColumnInfo() {}
-
-        public ColumnInfo(String name, String type) {
-            this.name = name;
-            this.type = type;
-        }
-
-        public String getName() { return name; }
-        public void setName(String name) { this.name = name; }
-
-        public String getType() { return type; }
-        public void setType(String type) { this.type = type; }
-    }
 }
