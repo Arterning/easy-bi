@@ -1,5 +1,6 @@
 package com.bi.model.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
@@ -13,6 +14,7 @@ public class BiTable {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "datasource_id", nullable = false)
+    @JsonIgnore
     private DataSource dataSource;
 
     @Column(nullable = false, length = 200)
