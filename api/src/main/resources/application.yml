@@ -1,13 +1,7 @@
 server:
   port: 8080
 
-# ---- H2: JPA metadata (unchanged) ----
 spring:
-  datasource:
-    url: jdbc:h2:file:./data/bi_meta;AUTO_SERVER=TRUE
-    driver-class-name: org.h2.Driver
-    username: sa
-    password:
   jpa:
     database-platform: org.hibernate.dialect.H2Dialect
     hibernate:
@@ -17,21 +11,19 @@ spring:
     multipart:
       max-file-size: 200MB
       max-request-size: 200MB
+  profiles:
+    active: dev
 
-# ---- DuckDB: data tables (JdbcTemplate) ----
 duckdb:
-  url: jdbc:duckdb:./data/bi_data.duckdb
+  driver: org.duckdb.DuckDBDriver
 
 bi:
   query:
     timeout-seconds: 60
     max-rows-per-query: 100000
-  upload-dir: ./data/uploads
 
-# ---- AI Agent ----
 ai:
   llm:
-    provider: openai
     base-url: https://api.deepseek.com/v1
     api-key: ${DEEPSEEK_API_KEY:}
     model: deepseek-chat

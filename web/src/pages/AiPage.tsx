@@ -42,7 +42,8 @@ export function AiPage() {
     setLoading(true)
 
     try {
-      const res = await fetch("http://localhost:8080/api/ai/chat", {
+      const AI_BASE = import.meta.env.PROD ? "" : "http://localhost:8080"
+      const res = await fetch(`${AI_BASE}/api/ai/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: msg, sessionId }),

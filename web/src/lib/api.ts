@@ -112,7 +112,9 @@ export interface Page<T> {
 
 // ---- API client ----
 
-const BASE_URL = "http://localhost:8080/api"
+// In production (after build), frontend is served by backend on same origin.
+// In dev, backend runs on port 8080 separately.
+const BASE_URL = import.meta.env.PROD ? "/api" : "http://localhost:8080/api"
 
 async function request<T>(
   url: string,

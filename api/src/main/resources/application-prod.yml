@@ -1,0 +1,13 @@
+# ---- 生产/部署环境 ----
+spring:
+  datasource:
+    url: jdbc:h2:file:${user.home}/.easy-bi/bi_meta;AUTO_SERVER=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+duckdb:
+  url: jdbc:duckdb:${user.home}/.easy-bi/bi_data.duckdb
+
+bi:
+  upload-dir: ${user.home}/.easy-bi/uploads
