@@ -110,4 +110,21 @@ public class DataSourceController {
         AppendResult result = fileImportService.appendToDataSource(id, file);
         return ResponseEntity.ok(ApiResponse.ok("追加成功", result));
     }
+
+    @DeleteMapping("/{id}/tables/{tableName}")
+    public ResponseEntity<ApiResponse<Void>> clearTable(
+            @PathVariable Long id,
+            @PathVariable String tableName) {
+
+        DataSource ds = dataSourceService.getById(id);
+        boolean found = ds.getTables().stream()
+                .anyMatch(bt -> bt.getPhysicalName().equalsIgnoreCase(tableName));
+        if (!found) {
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error(400, "表不属于该数据源"));
+        }
+
+        tableManagementService.truncateTable(tableName);
+        return ResponseEntity.ok(ApiResponse.ok("表数据已清空", null));
+    }
 }

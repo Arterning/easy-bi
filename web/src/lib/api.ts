@@ -201,6 +201,10 @@ export const api = {
     })
   },
 
+  clearTable(dataSourceId: number, tableName: string) {
+    return request<void>(`/datasources/${dataSourceId}/tables/${tableName}`, { method: "DELETE" })
+  },
+
   // Datasets
   createDataset(req: DatasetCreateRequest) {
     return request<Dataset>("/datasets", {

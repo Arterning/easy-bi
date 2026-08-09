@@ -28,6 +28,12 @@ public class TableManagementService {
         duckDb.execute(sql);
     }
 
+    public void truncateTable(String tableName) {
+        String sql = "DELETE FROM " + DATA_SCHEMA + ".\"" + tableName + "\"";
+        log.info("Truncating table: {}", tableName);
+        duckDb.execute(sql);
+    }
+
     public List<String> listTables() {
         return duckDb.query(
                 "SELECT table_name FROM information_schema.tables " +

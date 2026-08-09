@@ -6,17 +6,18 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
-import { CaretDown, Eye, Trash, FileCsv, FileXls, Plus } from "@phosphor-icons/react"
+import { CaretDown, Eye, Trash, FileCsv, FileXls, Plus, Eraser } from "@phosphor-icons/react"
 import type { DataSourceDetail } from "@/lib/api"
 
 interface DataSourceCardProps {
   ds: DataSourceDetail
   onPreview: (tableName: string, displayName?: string) => void
+  onClearTable: (tableName: string, displayName?: string) => void
   onAppend: (id: number) => void
   onDelete: (id: number) => void
 }
 
-export function DataSourceCard({ ds, onPreview, onAppend, onDelete }: DataSourceCardProps) {
+export function DataSourceCard({ ds, onPreview, onClearTable, onAppend, onDelete }: DataSourceCardProps) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -72,14 +73,25 @@ export function DataSourceCard({ ds, onPreview, onAppend, onDelete }: DataSource
                   {table.columns.map((c) => `${c.name} (${c.type})`).join(", ")}
                 </p>
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onPreview(table.name, table.displayName)}
-              >
-                <Eye className="size-4 mr-1" />
-                预览
-              </Button>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onPreview(table.name, table.displayName)}
+                >
+                  <Eye className="size-4 mr-1" />
+                  预览
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-destructive hover:text-destructive"
+                  onClick={() => onClearTable(table.name, table.displayName)}
+                >
+                  <Eraser className="size-4 mr-1" />
+                  清空
+                </Button>
+              </div>
             </div>
           ))}
         </div>

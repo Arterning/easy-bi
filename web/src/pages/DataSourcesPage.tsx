@@ -24,6 +24,7 @@ export function DataSourcesPage() {
   const [preview, setPreview] = useState<{ dsId: number; table: string; displayName?: string } | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null)
   const [appendTarget, setAppendTarget] = useState<number | null>(null)
+  const [clearTarget, setClearTarget] = useState<{ dsId: number; tableName: string; displayName?: string } | null>(null)
 
   const load = useCallback(async (p = page) => {
     setLoading(true)
@@ -77,6 +78,18 @@ export function DataSourcesPage() {
     }
   }
 
+  const handleClearTable = async () => {
+    if (!clearTarget) return
+    try {
+      await api.clearTable(clearTarget.dsId, clearTarget.tableName)
+      toast.success(`表 "${clearTarget.displayName ?? clearTarget.tableName}" 已清空`)
+      setClearTarget(null)
+      await load(page)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "清空失败")
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -114,6 +127,7 @@ export function DataSourcesPage() {
               key={ds.id}
               ds={ds}
               onPreview={(table, displayName) => setPreview({ dsId: ds.id, table, displayName })}
+              onClearTable={(tableName, displayName) => setClearTarget({ dsId: ds.id, tableName, displayName })}
               onAppend={(id) => setAppendTarget(id)}
               onDelete={(id) => setDeleteTarget(id)}
             />
@@ -143,6 +157,16 @@ export function DataSourcesPage() {
         confirmText="确认删除"
         variant="destructive"
         onConfirm={handleDelete}
+      />
+
+      <ConfirmDialog
+        open={clearTarget != null}
+        onOpenChange={(o) => { if (!o) setClearTarget(null) }}
+        title="清空表数据"
+        description={`确认清空表 "${clearTarget?.displayName ?? clearTarget?.tableName}" 的所有数据？表结构保留，数据不可恢复。`}
+        confirmText="确认清空"
+        variant="destructive"
+        onConfirm={handleClearTable}
       />
 
       <AppendDialog
