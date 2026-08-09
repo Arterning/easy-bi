@@ -10,6 +10,8 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 @RestController
 @RequestMapping("/api/ai")
@@ -17,6 +19,7 @@ public class AiController {
 
     private final AgentService agentService;
     private final ChatSessionService sessionService;
+    private final ExecutorService executor = Executors.newCachedThreadPool();
 
     public AiController(AgentService agentService, ChatSessionService sessionService) {
         this.agentService = agentService;
@@ -44,9 +47,14 @@ public class AiController {
         // Derive title from first N chars of user message
         String title = message.length() > 50 ? message.substring(0, 50) : message;
 
+        final String sid = sessionId;
+        final String ttl = title;
+
         SseEmitter emitter = new SseEmitter(300_000L); // 5 min timeout
 
-        agentService.run(sessionId, message, title, createNew, new AgentService.AgentCallback() {
+        // Run agent in background thread so Spring commits the response immediately
+        executor.submit(() -> {
+            agentService.run(sid, message, ttl, createNew, new AgentService.AgentCallback() {
             @Override
             public void onThinking(String text) {
                 send(emitter, "thinking", text);
@@ -87,6 +95,7 @@ public class AiController {
                 }
             }
         });
+        }); // executor.submit
 
         return emitter;
     }
