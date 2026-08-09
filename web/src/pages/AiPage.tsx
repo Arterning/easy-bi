@@ -56,10 +56,11 @@ export function AiPage() {
         return
       }
 
-      const raw = await res.text()
-      const events = raw.split("\n\n")
+      const reader = res.body!.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ""
 
-      for (const block of events) {
+      const processBlock = (block: string) => {
         const lines = block.split("\n")
         let eventType = ""
         let data = ""
@@ -68,7 +69,7 @@ export function AiPage() {
           if (line.startsWith("event:")) eventType = line.slice(6).trim()
           else if (line.startsWith("data:")) data += line.slice(5).trim()
         }
-        if (!eventType || !data) continue
+        if (!eventType || !data) return
 
         switch (eventType) {
           case "thinking":
@@ -101,6 +102,24 @@ export function AiPage() {
           case "error":
             addMsg({ id: crypto.randomUUID(), role: "error", content: data })
             break
+        }
+      }
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (value) {
+          buffer += decoder.decode(value, { stream: true })
+        }
+        // Split complete SSE events (separated by \n\n)
+        const parts = buffer.split("\n\n")
+        buffer = parts.pop() ?? ""  // keep incomplete last fragment
+        for (const block of parts) {
+          if (block.trim()) processBlock(block)
+        }
+        if (done) {
+          // Process any remaining data
+          if (buffer.trim()) processBlock(buffer)
+          break
         }
       }
     } catch (e) {
