@@ -1,8 +1,10 @@
 package com.bi.ai;
 
+import com.bi.model.dto.ApiResponse;
 import com.bi.model.entity.ChatSession;
 import com.bi.service.ChatSessionService;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -92,7 +94,7 @@ public class AiController {
     // ==================== Session management ====================
 
     @GetMapping("/sessions")
-    public List<Map<String, Object>> listSessions() {
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> listSessions() {
         List<ChatSession> sessions = sessionService.list();
         List<Map<String, Object>> result = new ArrayList<>();
         for (ChatSession s : sessions) {
@@ -103,13 +105,13 @@ public class AiController {
             item.put("updatedAt", s.getUpdatedAt());
             result.add(item);
         }
-        return result;
+        return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
     @GetMapping("/sessions/{id}")
-    public Map<String, Object> getSession(@PathVariable String id) {
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getSession(@PathVariable String id) {
         ChatSession s = sessionService.get(id);
-        if (s == null) return Map.of("id", id, "messages", List.of());
+        if (s == null) return ResponseEntity.ok(ApiResponse.ok(Map.of("id", id, "messages", List.of())));
 
         List<Map<String, Object>> messages = sessionService.loadMessages(id);
 
@@ -119,12 +121,12 @@ public class AiController {
         result.put("messages", messages != null ? messages : List.of());
         result.put("createdAt", s.getCreatedAt());
         result.put("updatedAt", s.getUpdatedAt());
-        return result;
+        return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
     @DeleteMapping("/sessions/{id}")
-    public Map<String, String> deleteSession(@PathVariable String id) {
+    public ResponseEntity<ApiResponse<Map<String, String>>> deleteSession(@PathVariable String id) {
         sessionService.delete(id);
-        return Map.of("status", "ok");
+        return ResponseEntity.ok(ApiResponse.ok("ok", Map.of("status", "ok")));
     }
 }
