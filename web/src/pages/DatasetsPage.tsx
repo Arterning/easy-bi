@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Table,
   TableBody,
@@ -10,6 +11,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Skeleton } from "@/components/ui/skeleton"
+import { toast } from "sonner"
 import { Plus, Pencil, Trash, Play, Download } from "@phosphor-icons/react"
 import { api, type Dataset } from "@/lib/api"
 import { PaginationBar } from "@/components/shared/PaginationBar"
@@ -22,10 +24,14 @@ export function DatasetsPage() {
   const [totalPages, setTotalPages] = useState(0)
   const [loading, setLoading] = useState(true)
 
+  // Multi-select
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+
   // Dialogs
   const navigate = useNavigate()
   const [editing, setEditing] = useState<Dataset | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null)
+  const [batchDeleteOpen, setBatchDeleteOpen] = useState(false)
 
   const load = useCallback(async (p = page) => {
     setLoading(true)
@@ -42,6 +48,32 @@ export function DatasetsPage() {
     load()
   }, [load])
 
+  // ---- Selection helpers ----
+
+  const allIds = datasets.map((d) => d.id)
+  const allSelected = allIds.length > 0 && allIds.every((id) => selectedIds.has(id))
+  const someSelected = allIds.some((id) => selectedIds.has(id))
+
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(allIds))
+    }
+  }
+
+  const toggleSelectOne = (id: number) => {
+    const next = new Set(selectedIds)
+    if (next.has(id)) {
+      next.delete(id)
+    } else {
+      next.add(id)
+    }
+    setSelectedIds(next)
+  }
+
+  // ---- Actions ----
+
   const handleUpdate = async (req: { name: string; sql: string; description?: string }) => {
     if (!editing) return
     await api.updateDataset(editing.id, req)
@@ -56,6 +88,20 @@ export function DatasetsPage() {
     await load(page)
   }
 
+  const handleBatchDelete = async () => {
+    const ids = Array.from(selectedIds)
+    if (ids.length === 0) return
+    try {
+      const res = await api.deleteBatchDatasets(ids)
+      toast.success(`已删除 ${res.data.deleted} 个数据集`)
+    } catch (e) {
+      toast.error("批量删除失败: " + (e as Error).message)
+    }
+    setSelectedIds(new Set())
+    setBatchDeleteOpen(false)
+    await load(page)
+  }
+
   const handleExport = async (ds: Dataset) => {
     const blob = await api.exportDatasetCsv(ds.id)
     const url = URL.createObjectURL(blob)
@@ -66,14 +112,24 @@ export function DatasetsPage() {
     URL.revokeObjectURL(url)
   }
 
+  const selectedCount = selectedIds.size
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">数据集管理</h1>
-        <Button onClick={() => navigate("/datasets/new")}>
-          <Plus className="size-4 mr-1" />
-          创建数据集
-        </Button>
+        <div className="flex items-center gap-2">
+          {selectedCount > 0 && (
+            <Button variant="destructive" size="sm" onClick={() => setBatchDeleteOpen(true)}>
+              <Trash className="size-4 mr-1" />
+              删除选中 ({selectedCount})
+            </Button>
+          )}
+          <Button onClick={() => navigate("/datasets/new")}>
+            <Plus className="size-4 mr-1" />
+            创建数据集
+          </Button>
+        </div>
       </div>
 
       {loading ? (
@@ -91,6 +147,13 @@ export function DatasetsPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10">
+                  <Checkbox
+                    checked={allSelected}
+                    data-state={someSelected && !allSelected ? "indeterminate" : undefined}
+                    onCheckedChange={toggleSelectAll}
+                  />
+                </TableHead>
                 <TableHead>名称</TableHead>
                 <TableHead className="hidden md:table-cell">SQL</TableHead>
                 <TableHead className="hidden md:table-cell">更新时间</TableHead>
@@ -99,7 +162,13 @@ export function DatasetsPage() {
             </TableHeader>
             <TableBody>
               {datasets.map((ds) => (
-                <TableRow key={ds.id}>
+                <TableRow key={ds.id} data-state={selectedIds.has(ds.id) ? "selected" : undefined}>
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedIds.has(ds.id)}
+                      onCheckedChange={() => toggleSelectOne(ds.id)}
+                    />
+                  </TableCell>
                   <TableCell className="font-medium">
                     <Link to={`/datasets/${ds.id}`} className="hover:underline text-primary">
                       {ds.name}
@@ -165,6 +234,16 @@ export function DatasetsPage() {
         confirmText="确认删除"
         variant="destructive"
         onConfirm={handleDelete}
+      />
+
+      <ConfirmDialog
+        open={batchDeleteOpen}
+        onOpenChange={(o) => { if (!o) setBatchDeleteOpen(false) }}
+        title="批量删除数据集"
+        description={`确认删除选中的 ${selectedCount} 个数据集？此操作不可恢复。`}
+        confirmText="确认删除"
+        variant="destructive"
+        onConfirm={handleBatchDelete}
       />
     </div>
   )

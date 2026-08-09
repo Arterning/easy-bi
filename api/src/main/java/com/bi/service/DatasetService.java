@@ -9,6 +9,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 @Service
 public class DatasetService {
 
@@ -61,5 +63,18 @@ public class DatasetService {
             throw new BusinessException("数据集不存在: id=" + id);
         }
         repository.deleteById(id);
+    }
+
+    @Transactional
+    public int deleteAll(List<Long> ids) {
+        if (ids == null || ids.isEmpty()) return 0;
+        int count = 0;
+        for (Long id : ids) {
+            if (repository.existsById(id)) {
+                repository.deleteById(id);
+                count++;
+            }
+        }
+        return count;
     }
 }

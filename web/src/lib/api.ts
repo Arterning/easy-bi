@@ -228,6 +228,13 @@ export const api = {
     return request<void>(`/datasets/${id}`, { method: "DELETE" })
   },
 
+  deleteBatchDatasets(ids: number[]) {
+    return request<{ deleted: number }>("/datasets/batch", {
+      method: "DELETE",
+      body: JSON.stringify(ids),
+    })
+  },
+
   executeDataset(id: number, page = 0, size = 50) {
     return request<QueryResult>(`/datasets/${id}/execute`, {
       method: "POST",

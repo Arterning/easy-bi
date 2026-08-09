@@ -59,6 +59,12 @@ public class DatasetController {
         return ResponseEntity.ok(ApiResponse.ok("删除成功", null));
     }
 
+    @DeleteMapping("/batch")
+    public ResponseEntity<ApiResponse<Map<String, Integer>>> deleteBatch(@RequestBody List<Long> ids) {
+        int count = datasetService.deleteAll(ids);
+        return ResponseEntity.ok(ApiResponse.ok("已删除 " + count + " 个数据集", Map.of("deleted", count)));
+    }
+
     @PostMapping("/{id}/execute")
     public ResponseEntity<ApiResponse<QueryResult>> execute(@PathVariable Long id,
                                                              @RequestBody QueryRequest req) {
