@@ -76,7 +76,6 @@ export function AiPage() {
           }
         } else if (m.role === "tool") {
           // Match to the previous tool card with same tool_call_id
-          const toolName = m.tool_call_id ?? ""
           for (let i = ui.length - 1; i >= 0; i--) {
             if (ui[i].role === "tool" && !ui[i].content) {
               ui[i] = { ...ui[i], content: m.content ?? "", collapsed: false }
