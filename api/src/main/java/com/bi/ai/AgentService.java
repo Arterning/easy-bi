@@ -1,5 +1,6 @@
 package com.bi.ai;
 
+import com.bi.service.ChatSessionService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -8,7 +9,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class AgentService {
@@ -34,31 +34,56 @@ public class AgentService {
 
     private final LlmClient llm;
     private final ToolRegistry toolRegistry;
+    private final ChatSessionService sessionService;
     private final ObjectMapper mapper = new ObjectMapper();
     private final int maxRounds;
 
-    /** Map<sessionId, List<Message>> — conversation history */
-    private final Map<String, List<Map<String, Object>>> sessions = new ConcurrentHashMap<>();
-
     public AgentService(LlmClient llm, ToolRegistry toolRegistry,
+                        ChatSessionService sessionService,
                         @Value("${ai.agent.max-rounds:10}") int maxRounds) {
         this.llm = llm;
         this.toolRegistry = toolRegistry;
+        this.sessionService = sessionService;
         this.maxRounds = maxRounds;
     }
 
     /**
-     * Run the agent loop and push progress events to the callback.
+     * Get session messages for frontend display (replay history).
      */
-    public void run(String sessionId, String userMessage, AgentCallback callback) {
-        List<Map<String, Object>> messages = sessions.computeIfAbsent(sessionId, k -> {
-            List<Map<String, Object>> list = new ArrayList<>();
-            list.add(Map.of("role", "system", "content", SYSTEM_PROMPT));
-            return list;
-        });
+    public List<Map<String, Object>> getSessionMessages(String sessionId) {
+        return sessionService.loadMessages(sessionId);
+    }
+
+    /**
+     * Run the agent loop. Messages are loaded from DB at start and saved after each tool call.
+     * @param sessionId  existing or new session id
+     * @param userMessage  user's latest message
+     * @param title  session title (first message); only used when creating new session
+     * @param createNew  if true, create a fresh session with system prompt only
+     * @param callback  SSE event emitter
+     */
+    public void run(String sessionId, String userMessage, String title,
+                    boolean createNew, AgentCallback callback) {
+
+        List<Map<String, Object>> messages;
+
+        if (createNew) {
+            messages = new ArrayList<>();
+            messages.add(Map.of("role", "system", "content", SYSTEM_PROMPT));
+            sessionService.create(sessionId, title, messages);
+        } else {
+            messages = sessionService.loadMessages(sessionId);
+            if (messages == null) {
+                // Session not found — create new
+                messages = new ArrayList<>();
+                messages.add(Map.of("role", "system", "content", SYSTEM_PROMPT));
+                sessionService.create(sessionId, title, messages);
+            }
+        }
 
         // Add user message
         messages.add(Map.of("role", "user", "content", userMessage));
+        sessionService.saveMessages(sessionId, title, messages);
 
         var tools = toolRegistry.getFunctionDefinitions();
 
@@ -90,7 +115,6 @@ public class AgentService {
                         String result = executeTool(tc);
                         callback.onToolResult(tc.name, result);
 
-                        // Add tool result message
                         messages.add(Map.of(
                             "role", "tool",
                             "tool_call_id", tc.id,
@@ -98,11 +122,15 @@ public class AgentService {
                         ));
                     }
 
+                    // Persist after each round
+                    sessionService.saveMessages(sessionId, title, messages);
+
                 } else {
                     // Final text response
                     if (resp.content != null) {
                         messages.add(Map.of("role", "assistant", "content", resp.content));
                     }
+                    sessionService.saveMessages(sessionId, title, messages);
                     callback.onMessage(resp.content != null ? resp.content : "抱歉，我无法回答这个问题。");
                     callback.onDone();
                     return;
@@ -110,6 +138,7 @@ public class AgentService {
             }
             // Exceeded max rounds
             callback.onMessage("抱歉，处理超时。请尝试简化需求。");
+            sessionService.saveMessages(sessionId, title, messages);
             callback.onDone();
         } catch (Exception e) {
             log.error("Agent error", e);
@@ -130,11 +159,6 @@ public class AgentService {
             log.error("Tool execution failed: {}", tc.name, e);
             return "工具执行失败: " + e.getMessage();
         }
-    }
-
-    /** Clear session history. */
-    public void clearSession(String sessionId) {
-        sessions.remove(sessionId);
     }
 
     // ---- Callback interface ----

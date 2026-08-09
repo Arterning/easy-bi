@@ -1,27 +1,37 @@
 package com.bi.ai;
 
+import com.bi.model.entity.ChatSession;
+import com.bi.service.ChatSessionService;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 
 @RestController
 @RequestMapping("/api/ai")
 public class AiController {
 
     private final AgentService agentService;
+    private final ChatSessionService sessionService;
 
-    public AiController(AgentService agentService) {
+    public AiController(AgentService agentService, ChatSessionService sessionService) {
         this.agentService = agentService;
+        this.sessionService = sessionService;
     }
+
+    // ==================== Chat (SSE) ====================
 
     @PostMapping(value = "/chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter chat(@RequestBody Map<String, String> body) {
         String message = body.get("message");
-        String sessionId = body.getOrDefault("sessionId", UUID.randomUUID().toString());
+        String sessionId = body.get("sessionId");
+        boolean createNew = Boolean.parseBoolean(body.getOrDefault("createNew", "false"));
+
+        if (sessionId == null || sessionId.isBlank()) {
+            sessionId = UUID.randomUUID().toString();
+        }
 
         if (message == null || message.isBlank()) {
             SseEmitter err = new SseEmitter();
@@ -29,9 +39,12 @@ public class AiController {
             return err;
         }
 
+        // Derive title from first N chars of user message
+        String title = message.length() > 50 ? message.substring(0, 50) : message;
+
         SseEmitter emitter = new SseEmitter(300_000L); // 5 min timeout
 
-        agentService.run(sessionId, message, new AgentService.AgentCallback() {
+        agentService.run(sessionId, message, title, createNew, new AgentService.AgentCallback() {
             @Override
             public void onThinking(String text) {
                 send(emitter, "thinking", text);
@@ -76,9 +89,42 @@ public class AiController {
         return emitter;
     }
 
-    @DeleteMapping("/session/{sessionId}")
-    public Map<String, String> clearSession(@PathVariable String sessionId) {
-        agentService.clearSession(sessionId);
+    // ==================== Session management ====================
+
+    @GetMapping("/sessions")
+    public List<Map<String, Object>> listSessions() {
+        List<ChatSession> sessions = sessionService.list();
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (ChatSession s : sessions) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("id", s.getId());
+            item.put("title", s.getTitle());
+            item.put("createdAt", s.getCreatedAt());
+            item.put("updatedAt", s.getUpdatedAt());
+            result.add(item);
+        }
+        return result;
+    }
+
+    @GetMapping("/sessions/{id}")
+    public Map<String, Object> getSession(@PathVariable String id) {
+        ChatSession s = sessionService.get(id);
+        if (s == null) return Map.of("id", id, "messages", List.of());
+
+        List<Map<String, Object>> messages = sessionService.loadMessages(id);
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("id", s.getId());
+        result.put("title", s.getTitle());
+        result.put("messages", messages != null ? messages : List.of());
+        result.put("createdAt", s.getCreatedAt());
+        result.put("updatedAt", s.getUpdatedAt());
+        return result;
+    }
+
+    @DeleteMapping("/sessions/{id}")
+    public Map<String, String> deleteSession(@PathVariable String id) {
+        sessionService.delete(id);
         return Map.of("status", "ok");
     }
 }

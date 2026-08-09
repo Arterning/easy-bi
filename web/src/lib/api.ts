@@ -128,6 +128,34 @@ export interface LlmSettingsUpdate {
   temperature: number
 }
 
+// Chat sessions
+export interface ChatSession {
+  id: string
+  title: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ChatSessionDetail extends ChatSession {
+  messages: ChatMessage[]
+}
+
+export interface ChatMessage {
+  role: "system" | "user" | "assistant" | "tool"
+  content: string | null
+  tool_calls?: ToolCall[]
+  tool_call_id?: string
+}
+
+export interface ToolCall {
+  id: string
+  type: "function"
+  function: {
+    name: string
+    arguments: string
+  }
+}
+
 // ---- API client ----
 
 // In production (after build), frontend is served by backend on same origin.
@@ -271,6 +299,28 @@ export const api = {
     return request<LlmSettings>("/settings/llm", {
       method: "PUT",
       body: JSON.stringify(req),
+    })
+  },
+
+  // Chat sessions
+  listSessions() {
+    return request<ChatSession[]>("/ai/sessions")
+  },
+
+  getSession(id: string) {
+    return request<ChatSessionDetail>(`/ai/sessions/${id}`)
+  },
+
+  deleteSession(id: string) {
+    return request<void>(`/ai/sessions/${id}`, { method: "DELETE" })
+  },
+
+  /** Returns the SSE stream — consumer must read via res.body.getReader(). */
+  chatStream(sessionId: string, message: string, createNew = false) {
+    return fetch(`${BASE_URL}/ai/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId, message, createNew }),
     })
   },
 }
