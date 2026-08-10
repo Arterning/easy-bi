@@ -27,6 +27,7 @@ public class AgentService {
             - 表名是物理名（如 t_a1b2c3d4），list_tables 返回的括号里就是物理名
             - 写 SQL 前先查看表结构，避免列名写错
             - 结果正确后主动将 SQL 保存为数据集（调用 create_dataset 工具）
+            - 如果数据集需要调整，使用 update_dataset 工具修改已有数据集的 SQL 或名称
             - 如果用户的描述不足以写 SQL，主动追问
             - 用中文回复
             - 回复中展示结果时，使用 Markdown 表格格式，表头用中文展示名
