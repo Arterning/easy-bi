@@ -157,8 +157,14 @@ export function AiPage() {
 
         for (const line of lines) {
           if (line.startsWith("event:")) eventType = line.slice(6).trim()
-          else if (line.startsWith("data:")) data += line.slice(5).trim()
+          else if (line.startsWith("data:")) {
+            // 保留换行：markdown 依赖换行结构，trim 会破坏列表/代码块/标题
+            let value = line.slice(5)
+            if (value.startsWith(" ")) value = value.slice(1) // 去掉 SSE 分隔符空格
+            data += value + "\n"
+          }
         }
+        data = data.trimEnd()
         if (!eventType || !data) return
 
         switch (eventType) {
@@ -214,6 +220,8 @@ export function AiPage() {
       addMsg({ id: crypto.randomUUID(), role: "error", content: (e as Error).message })
     } finally {
       setLoading(false)
+      // 思考中只应在 agent 运行期间展示，结束后移除
+      setMessages((prev) => prev.filter((m) => m.role !== "thinking"))
       // Refresh session list (title may have been set)
       loadSessions()
     }
