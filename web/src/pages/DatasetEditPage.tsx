@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Skeleton } from "@/components/ui/skeleton"
 import { SqlEditor } from "@/components/query/SqlEditor"
 import { ArrowLeft, FloppyDisk } from "@phosphor-icons/react"
+import { toast } from "sonner"
 import { api, type Dataset } from "@/lib/api"
 
 export function DatasetEditPage() {
@@ -41,6 +42,7 @@ export function DatasetEditPage() {
           sql: sql.trim(),
           description: description.trim() || undefined,
         })
+        toast.success("创建成功")
         navigate(`/datasets/${res.data.id}`)
       } else {
         await api.updateDataset(Number(id), {
@@ -48,8 +50,11 @@ export function DatasetEditPage() {
           sql: sql.trim(),
           description: description.trim() || undefined,
         })
+        toast.success("保存成功")
         navigate(`/datasets/${id}`)
       }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "保存失败")
     } finally {
       setSaving(false)
     }
