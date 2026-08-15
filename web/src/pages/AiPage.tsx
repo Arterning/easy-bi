@@ -7,6 +7,8 @@ import {
   Plus, Trash,
 } from "@phosphor-icons/react"
 import { toast } from "sonner"
+import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 import { api, type ChatSession } from "@/lib/api"
 
 interface UiMessage {
@@ -324,7 +326,11 @@ export function AiPage() {
                   </div>
                 )}
                 {msg.role === "thinking" && <div className="flex items-center gap-2"><Spinner className="size-3 animate-spin" />{msg.content}</div>}
-                {msg.role === "assistant" && <div className="whitespace-pre-wrap">{msg.content}</div>}
+                {msg.role === "assistant" && (
+                  <div className="markdown-body">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                  </div>
+                )}
                 {msg.role === "error" && <div className="flex items-center gap-2"><XCircle className="size-4" />{msg.content}</div>}
                 {msg.role === "user" && <div>{msg.content}</div>}
               </div>
