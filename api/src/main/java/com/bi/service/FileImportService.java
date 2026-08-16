@@ -276,8 +276,10 @@ public class FileImportService {
 
         try {
             if (EXCEL_EXTENSIONS.contains(fileExt)) {
+                // ignore_errors=True 与初始上传一致：列被推断为数值但个别单元格是文本时，
+                // 忽略该单元格（置 NULL）而不是让整个追加失败
                 duckDb.execute("CREATE TEMP TABLE " + tmpTable + " AS " +
-                        "SELECT * FROM read_xlsx('" + filePath + "', sheet='" + sheetName.replace("'", "''") + "')");
+                        "SELECT * FROM read_xlsx('" + filePath + "', sheet='" + sheetName.replace("'", "''") + "',ignore_errors=True)");
             } else {
                 duckDb.execute("CREATE TEMP TABLE " + tmpTable + " AS " +
                         "SELECT * FROM read_csv('" + filePath + "', header=true, auto_detect=true)");
