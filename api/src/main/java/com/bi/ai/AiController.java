@@ -2,6 +2,7 @@ package com.bi.ai;
 
 import com.bi.model.dto.ApiResponse;
 import com.bi.model.entity.ChatSession;
+import com.bi.model.dto.ChartSpec;
 import com.bi.service.ChatSessionService;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -68,6 +69,11 @@ public class AiController {
             @Override
             public void onToolResult(String toolName, String result) {
                 send(emitter, "tool_result", Map.of("tool", toolName, "result", result));
+            }
+
+            @Override
+            public void onChart(ChartSpec chart) {
+                send(emitter, "chart", chart);
             }
 
             @Override

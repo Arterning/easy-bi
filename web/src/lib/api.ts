@@ -145,6 +145,7 @@ export interface ChatMessage {
   content: string | null
   tool_calls?: ToolCall[]
   tool_call_id?: string
+  chart?: import("@/components/ai/ChartCard").ChartSpec
 }
 
 export interface ToolCall {

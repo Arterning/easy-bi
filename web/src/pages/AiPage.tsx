@@ -10,11 +10,13 @@ import { toast } from "sonner"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { api, type ChatSession } from "@/lib/api"
+import { ChartCard, type ChartSpec } from "@/components/ai/ChartCard"
 
 interface UiMessage {
   id: string
-  role: "user" | "assistant" | "tool" | "thinking" | "error"
+  role: "user" | "assistant" | "tool" | "thinking" | "error" | "chart"
   content: string
+  chart?: ChartSpec
   toolName?: string
   toolArgs?: string
   collapsed?: boolean
@@ -84,6 +86,8 @@ export function AiPage() {
               break
             }
           }
+        } else if (m.role === "assistant" && m.chart) {
+          ui.push({ id: crypto.randomUUID(), role: "chart", content: "", chart: m.chart })
         } else if (m.role === "assistant" && m.content) {
           ui.push({ id: crypto.randomUUID(), role: "assistant", content: m.content })
         }
@@ -194,6 +198,11 @@ export function AiPage() {
             break
           case "message":
             addMsg({ id: crypto.randomUUID(), role: "assistant", content: data })
+            break
+          case "chart":
+            try {
+              addMsg({ id: crypto.randomUUID(), role: "chart", content: "", chart: JSON.parse(data) as ChartSpec })
+            } catch { /* ignore malformed chart events */ }
             break
           case "error":
             addMsg({ id: crypto.randomUUID(), role: "error", content: data })
@@ -314,11 +323,12 @@ export function AiPage() {
 
           {messages.map((msg) => (
             <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-              <div className={`max-w-[80%] rounded-lg px-4 py-2.5 text-sm ${
+              <div className={`${msg.role === "chart" ? "w-[min(900px,95%)]" : "max-w-[80%]"} rounded-lg px-4 py-2.5 text-sm ${
                 msg.role === "user" ? "bg-primary text-primary-foreground" :
                 msg.role === "error" ? "bg-destructive/10 text-destructive border border-destructive/20" :
                 msg.role === "thinking" ? "bg-muted text-muted-foreground italic" :
                 msg.role === "tool" ? "bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800" :
+                msg.role === "chart" ? "px-0 py-0" :
                 "bg-muted"
               }`}>
                 {msg.role === "tool" && (
@@ -339,6 +349,7 @@ export function AiPage() {
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
                   </div>
                 )}
+                {msg.role === "chart" && msg.chart && <ChartCard spec={msg.chart} />}
                 {msg.role === "error" && <div className="flex items-center gap-2"><XCircle className="size-4" />{msg.content}</div>}
                 {msg.role === "user" && <div>{msg.content}</div>}
               </div>

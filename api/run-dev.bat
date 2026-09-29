@@ -1,5 +1,5 @@
 @echo off
-
+set JAVA_HOME=C:\Users\ningh\.jdks\openjdk-22.0.1
 
 REM ====== AI API Key (set your key here) ======
 if "%DEEPSEEK_API_KEY%"=="" (

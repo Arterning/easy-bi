@@ -1,6 +1,7 @@
 package com.bi.ai;
 
 import com.bi.service.ChatSessionService;
+import com.bi.model.dto.ChartSpec;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -31,6 +32,7 @@ public class AgentService {
             - 如果用户的描述不足以写 SQL，主动追问
             - 用中文回复
             - 回复中展示结果时，使用 Markdown 表格格式，表头用中文展示名
+            - 查询结果适合可视化时，主动调用 render_chart；图表 SQL 必须与已验证的查询口径一致
             """;
 
     private final LlmClient llm;
@@ -114,13 +116,32 @@ public class AgentService {
                     for (LlmClient.LlmResponse.ToolCall tc : resp.toolCalls) {
                         callback.onToolCall(tc.name, tc.arguments);
                         String result = executeTool(tc);
-                        callback.onToolResult(tc.name, result);
+                        ChartSpec chart = null;
+                        String toolContent = result;
+                        if ("render_chart".equals(tc.name) && !result.startsWith("工具执行失败:")) {
+                            try {
+                                chart = mapper.readValue(result, ChartSpec.class);
+                                toolContent = "图表已生成：" + chart.title() + "（" + chart.data().size() + " 行数据）";
+                            } catch (Exception e) {
+                                log.warn("Invalid chart result", e);
+                            }
+                        }
+                        callback.onToolResult(tc.name, toolContent);
 
                         messages.add(Map.of(
                             "role", "tool",
                             "tool_call_id", tc.id,
-                            "content", result
+                            "content", toolContent
                         ));
+
+                        if (chart != null) {
+                            Map<String, Object> chartMessage = new LinkedHashMap<>();
+                            chartMessage.put("role", "assistant");
+                            chartMessage.put("content", "");
+                            chartMessage.put("chart", chart);
+                            messages.add(chartMessage);
+                            callback.onChart(chart);
+                        }
                     }
 
                     // Persist after each round
@@ -168,6 +189,7 @@ public class AgentService {
         void onThinking(String text);
         void onToolCall(String toolName, String arguments);
         void onToolResult(String toolName, String result);
+        void onChart(ChartSpec chart);
         void onMessage(String text);
         void onError(String error);
         void onDone();

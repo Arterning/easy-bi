@@ -37,7 +37,18 @@ public class LlmClient {
     public LlmResponse chat(List<Map<String, Object>> messages, List<Map<String, Object>> tools) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("model", config.getModel());
-        body.put("messages", messages);
+        // Persisted messages may contain UI-only chart artifacts. Do not send
+        // those custom fields to OpenAI-compatible chat completion endpoints.
+        List<Map<String, Object>> llmMessages = new ArrayList<>();
+        for (Map<String, Object> message : messages) {
+            if (message.containsKey("chart")) continue;
+            Map<String, Object> clean = new LinkedHashMap<>();
+            for (String key : List.of("role", "content", "tool_calls", "tool_call_id", "name")) {
+                if (message.containsKey(key)) clean.put(key, message.get(key));
+            }
+            llmMessages.add(clean);
+        }
+        body.put("messages", llmMessages);
         body.put("max_tokens", config.getMaxTokens());
         body.put("temperature", config.getTemperature());
         if (tools != null && !tools.isEmpty()) {
