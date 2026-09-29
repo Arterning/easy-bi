@@ -91,12 +91,17 @@ public class AgentService {
         var tools = toolRegistry.getFunctionDefinitions();
 
         try {
+            boolean toolExecutedThisRun = false;
             for (int round = 0; round < maxRounds; round++) {
                 callback.onThinking("思考中...");
 
-                LlmClient.LlmResponse resp = llm.chat(messages, tools);
+                // A BI request must execute at least one tool before it can be
+                // considered complete. Once a tool has run, a plain assistant
+                // response is the final answer for this turn.
+                LlmClient.LlmResponse resp = llm.chat(messages, tools, !toolExecutedThisRun);
 
                 if (resp.hasToolCalls()) {
+                    toolExecutedThisRun = true;
                     // Store assistant message with tool calls
                     List<Map<String, Object>> toolCallsForMsg = new ArrayList<>();
                     for (LlmClient.LlmResponse.ToolCall tc : resp.toolCalls) {
@@ -149,11 +154,12 @@ public class AgentService {
 
                 } else {
                     // Final text response
-                    if (resp.content != null) {
+                    if (resp.content != null && !resp.content.isBlank()) {
                         messages.add(Map.of("role", "assistant", "content", resp.content));
                     }
                     sessionService.saveMessages(sessionId, title, messages);
-                    callback.onMessage(resp.content != null ? resp.content : "抱歉，我无法回答这个问题。");
+                    callback.onMessage(resp.content != null && !resp.content.isBlank()
+                            ? resp.content : "抱歉，我无法回答这个问题。");
                     callback.onDone();
                     return;
                 }

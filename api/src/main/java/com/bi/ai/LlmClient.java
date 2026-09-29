@@ -34,7 +34,8 @@ public class LlmClient {
     /**
      * Call the LLM with messages and optional tools. Returns parsed response.
      */
-    public LlmResponse chat(List<Map<String, Object>> messages, List<Map<String, Object>> tools) {
+    public LlmResponse chat(List<Map<String, Object>> messages, List<Map<String, Object>> tools,
+                            boolean requireTool) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("model", config.getModel());
         // Persisted messages may contain UI-only chart artifacts. Do not send
@@ -53,7 +54,7 @@ public class LlmClient {
         body.put("temperature", config.getTemperature());
         if (tools != null && !tools.isEmpty()) {
             body.put("tools", tools);
-            body.put("tool_choice", "auto");
+            body.put("tool_choice", requireTool ? "required" : "auto");
         }
 
         try {
